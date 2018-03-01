@@ -28,9 +28,10 @@ describe('Utility functions', () => {
     const uid = utils.newUID()
     // Since the UID contains only hexa chars, we don't want to see
     // the character X
-    expect(uid).toEqual(
-      expect.stringMatching(/[^x]?/)
-    )
+    expect(uid).not.toContain('x')
+    expect(uid).toContain('-')
+    // should have exactly 4x dashes
+    expect(uid.split('-').length - 1).toEqual(4)
     done()
   })
 })
