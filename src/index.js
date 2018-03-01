@@ -4,7 +4,8 @@ const socketCluster = require('socketcluster-client')
 class MasqSync {
   constructor (myID) {
     this.ID = myID || utils.newUID()
-    this.channels = []
+    this.channels = {}
+    this.myChannel = undefined
   }
   /**
    * Create a new socketCluster WebSocket connection.
@@ -48,8 +49,8 @@ class MasqSync {
   subscribeSelf () {
     let local = this
 
-    const myChannel = local.socket.subscribe(local.ID)
-    myChannel.watch(function (msg) {
+    local.myChannel = local.socket.subscribe(local.ID)
+    local.myChannel.watch(function (msg) {
       // console.log(`New msg in my channel:`, msg)
       if (msg.event === 'ping') {
         var data = {
@@ -61,6 +62,7 @@ class MasqSync {
         }
         if (local.channels[msg.from]) {
           local.channels[msg.from].socket.publish(data)
+          local.channels[msg.from].intro = true
           // console.log('Channel up with ' + msg.from)
         }
       }
@@ -78,16 +80,20 @@ class MasqSync {
 
   subscribeToPeers (peers = []) {
     let local = this
-    peers.forEach(function (peer) {
-      local.channels[peer] = {
-        socket: local.socket.subscribe(peer)
-      }
-      local.channels[peer].socket.on('subscribe', function () {
-        local.channels[peer].socket.publish({
-          event: 'ping',
-          from: local.ID
+    return new Promise((resolve) => {
+      peers.forEach(function (peer) {
+        local.channels[peer] = {
+          intro: false,
+          socket: local.socket.subscribe(peer)
+        }
+        local.channels[peer].socket.on('subscribe', function () {
+          local.channels[peer].socket.publish({
+            event: 'ping',
+            from: local.ID
+          })
         })
       })
+      return resolve()
     })
   }
 

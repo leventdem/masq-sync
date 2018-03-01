@@ -24,7 +24,8 @@ var MasqSync = function () {
     (0, _classCallCheck3.default)(this, MasqSync);
 
     this.ID = myID || utils.newUID();
-    this.channels = [];
+    this.channels = {};
+    this.myChannel = undefined;
   }
   /**
    * Create a new socketCluster WebSocket connection.
@@ -73,8 +74,8 @@ var MasqSync = function () {
     value: function subscribeSelf() {
       var local = this;
 
-      var myChannel = local.socket.subscribe(local.ID);
-      myChannel.watch(function (msg) {
+      local.myChannel = local.socket.subscribe(local.ID);
+      local.myChannel.watch(function (msg) {
         // console.log(`New msg in my channel:`, msg)
         if (msg.event === 'ping') {
           var data = {
@@ -86,6 +87,7 @@ var MasqSync = function () {
           }
           if (local.channels[msg.from]) {
             local.channels[msg.from].socket.publish(data);
+            local.channels[msg.from].intro = true;
             // console.log('Channel up with ' + msg.from)
           }
         }
@@ -106,16 +108,20 @@ var MasqSync = function () {
       var peers = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : [];
 
       var local = this;
-      peers.forEach(function (peer) {
-        local.channels[peer] = {
-          socket: local.socket.subscribe(peer)
-        };
-        local.channels[peer].socket.on('subscribe', function () {
-          local.channels[peer].socket.publish({
-            event: 'ping',
-            from: local.ID
+      return new Promise(function (resolve) {
+        peers.forEach(function (peer) {
+          local.channels[peer] = {
+            intro: false,
+            socket: local.socket.subscribe(peer)
+          };
+          local.channels[peer].socket.on('subscribe', function () {
+            local.channels[peer].socket.publish({
+              event: 'ping',
+              from: local.ID
+            });
           });
         });
+        return resolve();
       });
     }
 
