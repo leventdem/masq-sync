@@ -27,21 +27,18 @@ class MasqSync {
         }
       }
     }
-    local.socket = socketCluster.create(opts)
 
     return new Promise((resolve, reject) => {
+      local.socket = socketCluster.create(opts)
+
       local.socket.on('error', function (err) {
         return reject(err)
       })
 
       local.socket.on('connect', function () {
-        // Subscribe this client to its own room by default
+        // Also subscribe this client to its own room by default
         local.subscribeSelf()
         return resolve()
-      })
-
-      local.socket.on('closed', function () {
-        return reject(new Error('CLOSED'))
       })
     })
   }
@@ -51,50 +48,70 @@ class MasqSync {
 
     local.myChannel = local.socket.subscribe(local.ID)
     local.myChannel.watch(function (msg) {
+      if (!msg.from) {
+        return
+      }
       // console.log(`New msg in my channel:`, msg)
       if (msg.event === 'ping') {
         var data = {
           event: 'pong',
           from: local.ID
         }
-        if (local.room) {
-          data.key = local.room
+        if (!local.channels[msg.from]) {
+          // Subscribe to that user
+          local.channels[msg.from] = {
+            socket: local.socket.subscribe(msg.from)
+          }
         }
-        if (local.channels[msg.from]) {
-          local.channels[msg.from].socket.publish(data)
-          local.channels[msg.from].intro = true
-          // console.log('Channel up with ' + msg.from)
-        }
-      }
-      if (msg.event === 'pong') {
+        local.channels[msg.from].socket.publish(data)
         // console.log('Channel up with ' + msg.from)
-        local.channels[msg.from].intro = true
-        if (!local.room && msg.key) {
-          local.room = msg.key
-          // joinRoom()
-          // console.log('Room:', local.room)
-        }
       }
+      // Set up shared room
+      // if (msg.event === 'pong') {
+        // console.log('Channel up with ' + msg.from)
+        // if (!local.room && msg.key) {
+          // local.room = msg.key
+          // joinRoom()
+        // }
+      // }
     })
   }
 
-  subscribeToPeers (peers = []) {
-    let local = this
-    return new Promise((resolve) => {
-      peers.forEach(function (peer) {
-        local.channels[peer] = {
-          intro: false,
-          socket: local.socket.subscribe(peer)
-        }
-        local.channels[peer].socket.on('subscribe', function () {
-          local.channels[peer].socket.publish({
-            event: 'ping',
-            from: local.ID
-          })
+  subscribePeer (peer, batch = false) {
+    return new Promise((resolve, reject) => {
+      if (!peer || peer.length === 0) {
+        return reject(new Error('Invalid peer value'))
+      }
+      let local = this
+      local.channels[peer] = {
+        socket: local.socket.subscribe(peer, {
+          batch: batch
         })
+      }
+      local.channels[peer].socket.on('subscribe', function () {
+        local.channels[peer].socket.publish({
+          event: 'ping',
+          from: local.ID
+        })
+        return resolve()
       })
-      return resolve()
     })
+  }
+
+  subscribePeers (peers = []) {
+    if (!Array.isArray(peers)) {
+      return Promise.reject(new Error('Invalid peer list'))
+    }
+    let local = this
+    let pending = []
+    peers.forEach(function (peer) {
+      const sub = local.subscribePeer(peer, true)
+      sub.catch(() => {
+        // do something with err
+      })
+      pending.push(sub)
+    })
+    return Promise.all(pending)
   }
 
   /**
