@@ -10,14 +10,14 @@ class MasqSync {
   /**
    * Create a new socketCluster WebSocket connection.
    *
-   * @param   {object} opts Optional parameters
+   * @param   {object} options Optional parameters
    * @return  {object} The WebSocket client
    */
-  init (opts) {
+  init (options) {
     let local = this
-    if (!opts || !utils.isObject(opts)) {
+    if (!options || !utils.isObject(options)) {
       // default settings
-      opts = {
+      options = {
         hostname: 'localhost',
         port: 8000,
         autoReconnectOptions: {
@@ -29,15 +29,17 @@ class MasqSync {
     }
 
     return new Promise((resolve, reject) => {
-      local.socket = socketCluster.create(opts)
+      local.socket = socketCluster.create(options)
 
-      local.socket.on('error', function (err) {
+      // if (local.ID === 'foo') console.log(local.socket)
+
+      local.socket.on('error', (err) => {
         return reject(err)
       })
 
-      local.socket.on('connect', function () {
-        // Also subscribe this client to its own room by default
-        local.subscribeSelf()
+      local.socket.on('connect', async () => {
+        // Also subscribe this client to its own channel by default
+        await local.subscribeSelf()
         return resolve()
       })
     })
@@ -47,7 +49,7 @@ class MasqSync {
     let local = this
 
     local.myChannel = local.socket.subscribe(local.ID)
-    local.myChannel.watch(function (msg) {
+    local.myChannel.watch((msg) => {
       if (!msg.from) {
         return
       }
@@ -88,7 +90,7 @@ class MasqSync {
           batch: batch
         })
       }
-      local.channels[peer].socket.on('subscribe', function () {
+      local.channels[peer].socket.on('subscribe', () => {
         local.channels[peer].socket.publish({
           event: 'ping',
           from: local.ID
@@ -104,7 +106,7 @@ class MasqSync {
     }
     let local = this
     let pending = []
-    peers.forEach(function (peer) {
+    peers.forEach((peer) => {
       const sub = local.subscribePeer(peer, true)
       sub.catch(() => {
         // do something with err
