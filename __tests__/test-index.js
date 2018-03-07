@@ -10,33 +10,21 @@ const options = {
 const DEFAULTURL = 'http://localhost:8000/socketcluster/'
 
 let server
-let sockets = []
-let peers = {}
 const nrPeers = 3
 
 // Start WebSocket server
 beforeAll((done) => {
   server = socketClusterServer.listen(options.port)
-  server.on('ready', async () => {
-    for (let i = 0; i < nrPeers; i++) {
-      sockets.push(new MasqSync())
-    }
-    // each peer has a list of IDs of other peers
-    let pending = []
-    sockets.forEach((socket) => {
-      peers[socket.ID] = sockets.map(peer => peer.ID).filter((peer) => peer !== socket.ID)
-      pending.push(socket.init(options))
-    })
-    Promise.all(pending).then(() => {
-      done()
-    })
+  server.on('closure', () => {})
+  server.on('disconnection', () => {})
+  server.once('ready', () => {
+    done()
   })
 })
 
 // Close sockets & WebSocket server after all tests end
 afterAll(() => {
-  sockets.forEeach((socket) => socket.destroy())
-  // server.close()
+  server.close()
 })
 
 describe('Bootstrapping tests', () => {
@@ -44,17 +32,10 @@ describe('Bootstrapping tests', () => {
     expect(server.isReady).toBeTruthy()
     done()
   })
-
-  it('should have connected the clients', (done) => {
-    sockets.forEach((socket) => {
-      expect(socket.socket.state).toEqual('open')
-    })
-    done()
-  })
 })
 
-describe('MasqSync', () => {
-  it('should use default options to init', (done) => {
+describe('MasqSync init', () => {
+  it('should use default options when none are provided', (done) => {
     const configs = [ [], '', null, undefined ]
     configs.forEach(async (cfg) => {
       const socket = new MasqSync()
@@ -64,7 +45,7 @@ describe('MasqSync', () => {
     done()
   })
 
-  it('should fail on invalid init options', (done) => {
+  it('should fail on invalid options', (done) => {
     const configs = [ {port: 9999}, {port: 'foo'} ]
     configs.forEach(async (cfg) => {
       try {
@@ -80,24 +61,47 @@ describe('MasqSync', () => {
   it('should not connect to inexistent server', (done) => {
     const configs = [ {hostname: 'localhost', port: 9999} ]
     configs.forEach(async (cfg) => {
+      let inited
       try {
         const socket = new MasqSync()
-        await socket.init(cfg)
-        expect(socket.socket.state).toEqual(socket.socket.CLOSED)
+        inited = socket.init(cfg)
+        inited.then(() => {
+          expect(socket.socket.state).toEqual(socket.socket.CLOSED)
+        })
       } catch (err) {
-        expect(err.message).toMatch(/Socket hung up/)
+        expect(inited).rejects.toHaveProperty('message', 'Socket hung up')
       }
     })
-    done()
-  })
-
-  it('should connect all peers', (done) => {
-    expect(sockets.length).toEqual(nrPeers)
     done()
   })
 })
 
 describe('Peers', () => {
+  let sockets = []
+  let peers = {}
+
+  beforeAll((done) => {
+    for (let i = 0; i < nrPeers; i++) {
+      sockets.push(new MasqSync())
+    }
+    // each peer has a list of IDs of other peers
+    let pending = []
+    sockets.forEach((socket) => {
+      peers[socket.ID] = sockets.map(peer => peer.ID).filter((peer) => peer !== socket.ID)
+      const prom = socket.init(options)
+      prom.catch(() => {})
+      pending.push(prom)
+    })
+    Promise.all(pending).then(() => {
+      done()
+    })
+  })
+
+  // Close sockets & WebSocket server after all tests end
+  afterAll(() => {
+    sockets.forEeach((socket) => socket.destroy())
+  })
+
   it('should be able to elect a master peer', (done) => {
     const ids = sockets.map(socket => socket.ID)
 
@@ -146,58 +150,52 @@ describe('Peers', () => {
 
       peers[socket.ID].forEach((peer) => {
         expect(socket.channels[peer]).not.toBeUndefined()
-        // console.log(socket.channels[peer].socket)
         expect(socket.channels[peer].socket.state).toEqual(socket.channels[peer].socket.SUBSCRIBED)
       })
     })
     done()
   })
 
-  it('should receive pings from other peers', (done) => {
-    sockets[0].myChannel.watch((msg) => {
-      expect(msg.event).toEqual('ping')
-      expect(peers[sockets[0].ID]).toContain(msg.from)
+  it('should subscribe to new peers on pings', async (done) => {
+    const socket = new MasqSync()
+    await socket.init(options)
+    await socket.subscribePeer(sockets[0].ID)
+
+    expect(Object.keys(socket.channels).length).toEqual(1)
+    setTimeout(async () => {
+      expect(Object.keys(sockets[0].channels).length).toEqual(3)
+      expect(Object.keys(sockets[0].channels)).toContain(socket.ID)
+      // cleanup
+      await sockets[0].unsubscribePeer(socket.ID)
       done()
-    })
-    for (let i = 1; i < nrPeers; i++) {
-      peers[sockets[i].ID].forEach((peer) => {
-        sockets[i].channels[peer].socket.publish({
-          event: 'ping',
-          from: sockets[i].ID
-        })
-      })
-    }
+    }, 10)
   })
 
-  // it('should subscribe to new peers on pings', async (done) => {
-  //   try {
-  //     const socket = new MasqSync()
-  //     // await socket.init(options)
-  //     console.log(socket)
-  //   } catch (err) {
-  //     console.log(err)
-  //   }
-  //   // socket.init(options).then(() => {
-  //   //   console.log(socket)
-  //   //   // console.log(socket)
-  //   //   done()
-  //   // }).catch((err) => {
-  //   //   console.log(socket)
-  //   //   console.log(err)
-  //   //   done()
-  //   // })
-  //   // expect(socket.socket.state).toEqual('open')
+  it('should unsubscribe on demand', async (done) => {
+    const ID = 'foo'
 
-  //   // sockets[0].myChannel.watch((msg) => {
-  //   //   expect(msg.event).toEqual('ping')
-  //   //   expect(msg.from).toEqual(socket.ID)
+    await sockets[0].subscribePeer(ID)
+    expect(Object.keys(sockets[0].channels)).toContain(ID)
+    expect(Object.keys(sockets[0].channels).length).toEqual(3)
 
-  //   //   // socket.close()
+    await sockets[0].unsubscribePeer(ID)
+    expect(Object.keys(sockets[0].channels).length).toEqual(2)
+    expect(Object.keys(sockets[0].channels)).not.toContain(ID)
 
-  //   //   done()
-  //   // })
+    done()
+  })
 
-  //   // await socket.subscribePeer(sockets[0].ID)
-  //   // expect(Object.keys(socket.channels).length).toEqual(1)
-  // })
+  it('should failt to unsubscribe bad peers', async (done) => {
+    const badValues = [ 'foo', '', null, undefined ]
+    badValues.forEach(async (val) => {
+      try {
+        await sockets[0].unsubscribePeer(val)
+      } catch (err) {
+        expect(err.message).toMatch(/invalid/i)
+      }
+      expect(Object.keys(sockets[0].channels).length).toEqual(2)
+    })
+
+    done()
+  })
 })
