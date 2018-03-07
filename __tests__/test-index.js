@@ -48,9 +48,11 @@ describe('MasqSync init', () => {
   it('should fail on invalid options', (done) => {
     const configs = [ {port: 9999}, {port: 'foo'} ]
     configs.forEach(async (cfg) => {
+      let prom
       try {
         const socket = new MasqSync()
-        await socket.init(cfg)
+        prom = socket.init(cfg)
+        prom.catch(() => {})
       } catch (err) {
         expect(err.message).toMatch(/invalid/)
       }
@@ -61,15 +63,15 @@ describe('MasqSync init', () => {
   it('should not connect to inexistent server', (done) => {
     const configs = [ {hostname: 'localhost', port: 9999} ]
     configs.forEach(async (cfg) => {
-      let inited
+      let prom
       try {
         const socket = new MasqSync()
-        inited = socket.init(cfg)
-        inited.then(() => {
+        prom = socket.init(cfg)
+        prom.then(() => {
           expect(socket.socket.state).toEqual(socket.socket.CLOSED)
-        })
+        }).catch(() => {})
       } catch (err) {
-        expect(inited).rejects.toHaveProperty('message', 'Socket hung up')
+        expect(prom).rejects.toHaveProperty('message', 'Socket hung up')
       }
     })
     done()
@@ -89,7 +91,6 @@ describe('Peers', () => {
     sockets.forEach((socket) => {
       peers[socket.ID] = sockets.map(peer => peer.ID).filter((peer) => peer !== socket.ID)
       const prom = socket.init(options)
-      prom.catch(() => {})
       pending.push(prom)
     })
     Promise.all(pending).then(() => {
@@ -118,7 +119,9 @@ describe('Peers', () => {
     const badValues = [ [], '', null, undefined ]
     badValues.forEach(async (val) => {
       try {
-        await sockets[0].subscribePeer(val)
+        const prom = sockets[0].subscribePeer(val)
+        prom.catch(() => {})
+        await prom
       } catch (err) {
         expect(err.message).toMatch(/invalid/i)
       }
@@ -133,7 +136,9 @@ describe('Peers', () => {
     const badValues = [ [null, undefined], '', null, undefined ]
     badValues.forEach(async (val) => {
       try {
-        await sockets[0].subscribePeers(val)
+        const prom = sockets[0].subscribePeers(val)
+        prom.catch(() => {})
+        await prom
       } catch (err) {
         expect(err.message).toMatch(/invalid/i)
       }
@@ -189,7 +194,9 @@ describe('Peers', () => {
     const badValues = [ 'foo', '', null, undefined ]
     badValues.forEach(async (val) => {
       try {
-        await sockets[0].unsubscribePeer(val)
+        const prom = sockets[0].unsubscribePeer(val)
+        prom.catch(() => {})
+        await prom
       } catch (err) {
         expect(err.message).toMatch(/invalid/i)
       }
