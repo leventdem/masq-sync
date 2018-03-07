@@ -14,11 +14,11 @@ class MasqSync {
    * @return  {object} The WebSocket client
    */
   init (options) {
-    let local = this
+    let self = this
     if (!options || !utils.isObject(options)) {
       // default settings
       options = {
-        hostname: 'localhost',
+        hostname: 'selfhost',
         port: 8000,
         autoReconnectOptions: {
           randomness: 1000,
@@ -29,53 +29,60 @@ class MasqSync {
     }
 
     return new Promise((resolve, reject) => {
-      local.socket = socketCluster.create(options)
+      self.socket = socketCluster.create(options)
 
-      // if (local.ID === 'foo') console.log(local.socket)
+      // if (self.ID === 'foo') console.log(self.socket)
 
-      local.socket.on('error', (err) => {
+      self.socket.on('error', (err) => {
         return reject(err)
       })
 
-      local.socket.on('connect', async () => {
+      self.socket.on('close', (err) => {
+        return reject(err)
+      })
+
+      self.socket.on('connect', async () => {
         // Also subscribe this client to its own channel by default
-        await local.subscribeSelf()
+        await self.subscribeSelf()
         return resolve()
       })
     })
   }
 
-  subscribeSelf () {
-    let local = this
+  // authorized (from) {
+  //   let self = this
+  // }
 
-    local.myChannel = local.socket.subscribe(local.ID)
-    local.myChannel.watch((msg) => {
-      if (!msg.from) {
-        return
-      }
-      // console.log(`New msg in my channel:`, msg)
-      if (msg.event === 'ping') {
-        var data = {
-          event: 'pong',
-          from: local.ID
-        }
-        if (!local.channels[msg.from]) {
-          // Subscribe to that user
-          local.channels[msg.from] = {
-            socket: local.socket.subscribe(msg.from)
+  subscribeSelf () {
+    let self = this
+
+    self.myChannel = self.socket.subscribe(self.ID)
+    self.myChannel.watch((msg) => {
+      if (msg.from) {
+        // console.log(`New msg in my channel:`, msg)
+        if (msg.event === 'ping') {
+          var data = {
+            event: 'pong',
+            from: self.ID
           }
+          if (!self.channels[msg.from]) {
+            // Subscribe to that user
+            self.channels[msg.from] = {
+              socket: self.socket.subscribe(msg.from)
+            }
+          }
+          self.channels[msg.from].socket.publish(data)
+          // console.log('Channel up with ' + msg.from)
         }
-        local.channels[msg.from].socket.publish(data)
-        // console.log('Channel up with ' + msg.from)
-      }
-      // Set up shared room
-      // if (msg.event === 'pong') {
-        // console.log('Channel up with ' + msg.from)
-        // if (!local.room && msg.key) {
-          // local.room = msg.key
-          // joinRoom()
+        // Set up shared room
+        // if (msg.event === 'pong') {
+          // console.log('Channel up with ' + msg.from)
+          // if (!self.room && msg.key) {
+            // self.room = msg.key
+            // joinRoom()
+          // }
         // }
-      // }
+      }
     })
   }
 
@@ -84,19 +91,34 @@ class MasqSync {
       if (!peer || peer.length === 0) {
         return reject(new Error('Invalid peer value'))
       }
-      let local = this
-      local.channels[peer] = {
-        socket: local.socket.subscribe(peer, {
+      let self = this
+      self.channels[peer] = {
+        socket: self.socket.subscribe(peer, {
           batch: batch
         })
       }
-      local.channels[peer].socket.on('subscribe', () => {
-        local.channels[peer].socket.publish({
+      self.channels[peer].socket.on('subscribe', () => {
+        self.channels[peer].socket.publish({
           event: 'ping',
-          from: local.ID
+          from: self.ID
         })
         return resolve()
       })
+      self.channels[peer].socket.on('subscribeFail', () => {
+        return reject(new Error('Subscribe failed'))
+      })
+    })
+  }
+
+  unsubscribePeer (peer) {
+    return new Promise((resolve, reject) => {
+      let self = this
+      if (!peer || peer.length === 0 || self.channels[peer] === undefined) {
+        return reject(new Error('Invalid peer value'))
+      }
+      self.channels[peer].socket.unsubscribe()
+      delete self.channels[peer]
+      return resolve()
     })
   }
 
@@ -104,10 +126,10 @@ class MasqSync {
     if (!Array.isArray(peers)) {
       return Promise.reject(new Error('Invalid peer list'))
     }
-    let local = this
+    let self = this
     let pending = []
     peers.forEach((peer) => {
-      const sub = local.subscribePeer(peer, true)
+      const sub = self.subscribePeer(peer, true)
       sub.catch(() => {
         // do something with err
       })
@@ -124,8 +146,8 @@ class MasqSync {
    * @return  {string} The peer ID of the master
    */
   electMaster (peers = []) {
-    let local = this
-    peers.push(local.ID)
+    let self = this
+    peers.push(self.ID)
     peers.sort()
     return peers[0]
   }

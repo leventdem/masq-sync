@@ -48,11 +48,11 @@ var MasqSync = function () {
     value: function init(options) {
       var _this = this;
 
-      var local = this;
+      var self = this;
       if (!options || !utils.isObject(options)) {
         // default settings
         options = {
-          hostname: 'localhost',
+          hostname: 'selfhost',
           port: 8000,
           autoReconnectOptions: {
             randomness: 1000,
@@ -63,21 +63,25 @@ var MasqSync = function () {
       }
 
       return new Promise(function (resolve, reject) {
-        local.socket = socketCluster.create(options);
+        self.socket = socketCluster.create(options);
 
-        // if (local.ID === 'foo') console.log(local.socket)
+        // if (self.ID === 'foo') console.log(self.socket)
 
-        local.socket.on('error', function (err) {
+        self.socket.on('error', function (err) {
           return reject(err);
         });
 
-        local.socket.on('connect', (0, _asyncToGenerator3.default)( /*#__PURE__*/_regenerator2.default.mark(function _callee() {
+        self.socket.on('close', function (err) {
+          return reject(err);
+        });
+
+        self.socket.on('connect', (0, _asyncToGenerator3.default)( /*#__PURE__*/_regenerator2.default.mark(function _callee() {
           return _regenerator2.default.wrap(function _callee$(_context) {
             while (1) {
               switch (_context.prev = _context.next) {
                 case 0:
                   _context.next = 2;
-                  return local.subscribeSelf();
+                  return self.subscribeSelf();
 
                 case 2:
                   return _context.abrupt('return', resolve());
@@ -91,39 +95,43 @@ var MasqSync = function () {
         })));
       });
     }
+
+    // authorized (from) {
+    //   let self = this
+    // }
+
   }, {
     key: 'subscribeSelf',
     value: function subscribeSelf() {
-      var local = this;
+      var self = this;
 
-      local.myChannel = local.socket.subscribe(local.ID);
-      local.myChannel.watch(function (msg) {
-        if (!msg.from) {
-          return;
-        }
-        // console.log(`New msg in my channel:`, msg)
-        if (msg.event === 'ping') {
-          var data = {
-            event: 'pong',
-            from: local.ID
-          };
-          if (!local.channels[msg.from]) {
-            // Subscribe to that user
-            local.channels[msg.from] = {
-              socket: local.socket.subscribe(msg.from)
+      self.myChannel = self.socket.subscribe(self.ID);
+      self.myChannel.watch(function (msg) {
+        if (msg.from) {
+          // console.log(`New msg in my channel:`, msg)
+          if (msg.event === 'ping') {
+            var data = {
+              event: 'pong',
+              from: self.ID
             };
+            if (!self.channels[msg.from]) {
+              // Subscribe to that user
+              self.channels[msg.from] = {
+                socket: self.socket.subscribe(msg.from)
+              };
+            }
+            self.channels[msg.from].socket.publish(data);
+            // console.log('Channel up with ' + msg.from)
           }
-          local.channels[msg.from].socket.publish(data);
+          // Set up shared room
+          // if (msg.event === 'pong') {
           // console.log('Channel up with ' + msg.from)
+          // if (!self.room && msg.key) {
+          // self.room = msg.key
+          // joinRoom()
+          // }
+          // }
         }
-        // Set up shared room
-        // if (msg.event === 'pong') {
-        // console.log('Channel up with ' + msg.from)
-        // if (!local.room && msg.key) {
-        // local.room = msg.key
-        // joinRoom()
-        // }
-        // }
       });
     }
   }, {
@@ -137,19 +145,37 @@ var MasqSync = function () {
         if (!peer || peer.length === 0) {
           return reject(new Error('Invalid peer value'));
         }
-        var local = _this2;
-        local.channels[peer] = {
-          socket: local.socket.subscribe(peer, {
+        var self = _this2;
+        self.channels[peer] = {
+          socket: self.socket.subscribe(peer, {
             batch: batch
           })
         };
-        local.channels[peer].socket.on('subscribe', function () {
-          local.channels[peer].socket.publish({
+        self.channels[peer].socket.on('subscribe', function () {
+          self.channels[peer].socket.publish({
             event: 'ping',
-            from: local.ID
+            from: self.ID
           });
           return resolve();
         });
+        self.channels[peer].socket.on('subscribeFail', function () {
+          return reject(new Error('Subscribe failed'));
+        });
+      });
+    }
+  }, {
+    key: 'unsubscribePeer',
+    value: function unsubscribePeer(peer) {
+      var _this3 = this;
+
+      return new Promise(function (resolve, reject) {
+        var self = _this3;
+        if (!peer || peer.length === 0 || self.channels[peer] === undefined) {
+          return reject(new Error('Invalid peer value'));
+        }
+        self.channels[peer].socket.unsubscribe();
+        delete self.channels[peer];
+        return resolve();
       });
     }
   }, {
@@ -160,10 +186,10 @@ var MasqSync = function () {
       if (!Array.isArray(peers)) {
         return Promise.reject(new Error('Invalid peer list'));
       }
-      var local = this;
+      var self = this;
       var pending = [];
       peers.forEach(function (peer) {
-        var sub = local.subscribePeer(peer, true);
+        var sub = self.subscribePeer(peer, true);
         sub.catch(function () {
           // do something with err
         });
@@ -185,8 +211,8 @@ var MasqSync = function () {
     value: function electMaster() {
       var peers = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : [];
 
-      var local = this;
-      peers.push(local.ID);
+      var self = this;
+      peers.push(self.ID);
       peers.sort();
       return peers[0];
     }
