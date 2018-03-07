@@ -17,3 +17,5 @@ git clone https://github.com/QwantResearch/masq-sync.git
 cd masq-sync
 npm install
 ```
+
+To test, simply run `npm test`.
