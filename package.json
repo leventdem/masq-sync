@@ -14,7 +14,7 @@
   "license": "Apache-2.0",
   "scripts": {
     "clean": "rm dist/index.js dist/utils.js",
-    "test": "npm run build && jest --verbose --coverage --forceExit",
+    "test": "npm run build && jest --verbose --coverage --forceExit && cat ./coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js",
     "watch": "jest --watch",
     "build": "./node_modules/.bin/babel ./src --experimental -d ./dist && browserify ./dist/index.js --standalone MasqSync > dist/masqsync.js && npm run clean",
     "minify": "npm run build && uglifyjs ./dist/masqsync.js -o ./dist/masqsync.min.js --compress --mangle -- ",
@@ -27,6 +27,7 @@
     "babel-polyfill": "^6.26.0",
     "babel-preset-env": "^1.6.1",
     "browserify": "^14.5.0",
+    "coveralls": "^3.0.0",
     "http-server": "^0.10.0",
     "jest": "^22.3.0",
     "socketcluster-server": "^10.0.1",
