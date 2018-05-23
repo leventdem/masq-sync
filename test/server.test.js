@@ -1,5 +1,5 @@
 const socketClusterServer = require('socketcluster-server')
-const MasqSync = require('../src/index')
+const MasqSync = require('../src/server')
 
 const options = {
   hostname: 'localhost',
@@ -34,11 +34,11 @@ describe('Bootstrapping tests', () => {
   })
 })
 
-describe('MasqSync init', () => {
+describe('MasqSync.Server init', () => {
   it('should use default options when none are provided', (done) => {
     const configs = [ [], '', null, undefined ]
     configs.forEach(async (cfg) => {
-      const socket = new MasqSync()
+      const socket = new MasqSync.Server()
       await socket.init(cfg)
       expect(socket.socket.clientId).toEqual(DEFAULTURL)
     })
@@ -50,7 +50,7 @@ describe('MasqSync init', () => {
     configs.forEach(async (cfg) => {
       let prom
       try {
-        const socket = new MasqSync()
+        const socket = new MasqSync.Server()
         prom = socket.init(cfg)
         prom.catch(() => {})
       } catch (err) {
@@ -65,7 +65,7 @@ describe('MasqSync init', () => {
     configs.forEach(async (cfg) => {
       let prom
       try {
-        const socket = new MasqSync()
+        const socket = new MasqSync.Server()
         prom = socket.init(cfg)
         prom.then(() => {
           expect(socket.socket.state).toEqual(socket.socket.CLOSED)
@@ -84,7 +84,7 @@ describe('Peers', () => {
 
   beforeAll((done) => {
     for (let i = 0; i < nrPeers; i++) {
-      sockets.push(new MasqSync())
+      sockets.push(new MasqSync.Server())
     }
     // each peer has a list of IDs of other peers
     let pending = []
@@ -162,7 +162,7 @@ describe('Peers', () => {
   })
 
   it('should subscribe to new peers on pings', async (done) => {
-    const socket = new MasqSync()
+    const socket = new MasqSync.Server()
     await socket.init(options)
     await socket.subscribePeer(sockets[0].ID)
 

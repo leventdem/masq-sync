@@ -1,9 +1,9 @@
-import * as utils from './utils'
 const socketCluster = require('socketcluster-client')
+const common = require('masq-common')
 
-class MasqSync {
+class Server {
   constructor (myID) {
-    this.ID = myID || utils.newUID()
+    this.ID = myID || common.generateUUID()
     this.channels = {}
     this.myChannel = undefined
   }
@@ -15,7 +15,7 @@ class MasqSync {
    */
   init (options) {
     let self = this
-    if (!options || !utils.isObject(options)) {
+    if (!options || Object.prototype.toString.call(options) !== '[object Object]') {
       // default settings
       options = {
         hostname: 'selfhost',
@@ -153,4 +153,4 @@ class MasqSync {
   }
 }
 
-module.exports = MasqSync
+module.exports.Server = Server
