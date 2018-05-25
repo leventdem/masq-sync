@@ -1,5 +1,5 @@
-const socketClient = require('socketcluster-client')
-const common = require('masq-common')
+import socketClient from 'socketcluster-client'
+import common from 'masq-common'
 
 // default settings
 const DEFAULTS = {

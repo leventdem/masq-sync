@@ -1,5 +1,5 @@
-const socketClusterServer = require('socketcluster-server')
-const MasqSync = require('../src/index')
+import socketClusterServer from 'socketcluster-server'
+import MasqSync from '../src/index'
 
 const options = {
   hostname: 'localhost',
