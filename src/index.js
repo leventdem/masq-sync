@@ -1,37 +1,52 @@
-const socketCluster = require('socketcluster-client')
+const socketClient = require('socketcluster-client')
 const common = require('masq-common')
 
-class Server {
-  constructor (myID) {
-    this.ID = myID || common.generateUUID()
+// default settings
+const DEFAULTS = {
+  hostname: 'localhost',
+  port: 8000,
+  multiplex: false,
+  autoReconnectOptions: {
+    randomness: 1000,
+    multiplier: 1.5,
+    maxDelay: 7000
+  }
+}
+
+class Client {
+  constructor (options) {
+    this.options = DEFAULTS
+    if (options && options.hostname) {
+      this.options.hostname = options.hostname
+    }
+    if (options && options.port) {
+      this.options.port = options.port
+    }
+    if (options && options.autoReconnectOptions) {
+      this.options.autoReconnectOptions = options.autoReconnectOptions
+    }
+    if (options && options.id) {
+      this.options.id = options.id
+    }
+    if (options && options.multiplex) {
+      this.options.multiplex = options.multiplex
+    }
+    this.ID = this.options.id || common.generateUUID()
     this.channels = {}
+    this.socket = undefined
     this.myChannel = undefined
   }
+
   /**
-   * Create a new socketCluster WebSocket connection.
+   * Init a new socketClient connection.
    *
-   * @param   {object} options Optional parameters
-   * @return  {object} The WebSocket client
+   * @return  {Promise} Promise resolves/rejects upon connection or errors
    */
-  init (options) {
+  init () {
     let self = this
-    if (!options || Object.prototype.toString.call(options) !== '[object Object]') {
-      // default settings
-      options = {
-        hostname: 'selfhost',
-        port: 8000,
-        autoReconnectOptions: {
-          randomness: 1000,
-          multiplier: 1.5,
-          maxDelay: 7000
-        }
-      }
-    }
 
     return new Promise((resolve, reject) => {
-      self.socket = socketCluster.create(options)
-
-      // if (self.ID === 'foo') console.log(self.socket)
+      self.socket = new socketClient.create(self.options)
 
       self.socket.on('error', (err) => {
         return reject(err)
@@ -49,10 +64,11 @@ class Server {
     })
   }
 
-  // authorized (from) {
-  //   let self = this
-  // }
-
+  /**
+   * Subscribe this client to its own channel.
+   *
+   * @return  {object} The WebSocket client
+   */
   subscribeSelf () {
     let self = this
 
@@ -86,6 +102,13 @@ class Server {
     })
   }
 
+  /**
+   * Subscribe peer to a given channel.
+   * 
+   * @param   {string} peer A peer (device)
+   * @param   {boolean} batch Whether to batch requests for increased perfomance
+   * @return  {Promise} Promise resolves/rejects upon subscription or errors
+   */
   subscribePeer (peer, batch = false) {
     return new Promise((resolve, reject) => {
       if (!peer || peer.length === 0) {
@@ -110,18 +133,12 @@ class Server {
     })
   }
 
-  unsubscribePeer (peer) {
-    return new Promise((resolve, reject) => {
-      let self = this
-      if (!peer || peer.length === 0 || self.channels[peer] === undefined) {
-        return reject(new Error('Invalid peer value'))
-      }
-      self.channels[peer].socket.unsubscribe()
-      delete self.channels[peer]
-      return resolve()
-    })
-  }
-
+  /**
+   * Subscribe a list of peers to a given channel.
+   *
+   * @param   {array} peers List of peers (devices)
+   * @return  {Promise} Promise resolves/rejects upon subscription or errors
+   */
   subscribePeers (peers = []) {
     if (!Array.isArray(peers)) {
       return Promise.reject(new Error('Invalid peer list'))
@@ -138,9 +155,28 @@ class Server {
     return Promise.all(pending)
   }
 
+
   /**
-   * Deterministically elect a master device. The first element of a alphabetically
-   * ordered list of peers.
+   * Unsubscribe peer from a given channel.
+   * 
+   * @param   {string} peer A peer (device)
+   * @return  {Promise} Promise resolves/rejects upon unsubscription or errors
+   */
+  unsubscribePeer (peer) {
+    return new Promise((resolve, reject) => {
+      let self = this
+      if (!peer || peer.length === 0 || self.channels[peer] === undefined) {
+        return reject(new Error('Invalid peer value'))
+      }
+      self.channels[peer].socket.unsubscribe()
+      delete self.channels[peer]
+      return resolve()
+    })
+  }
+
+  /**
+   * Deterministically elect a master device, by using the first element of a 
+   * alphabetically ordered list of peers.
    *
    * @param   {array} peers List of peers (devices)
    * @return  {string} The peer ID of the master
@@ -153,4 +189,4 @@ class Server {
   }
 }
 
-module.exports.Server = Server
+module.exports.Client = Client

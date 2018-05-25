@@ -18,48 +18,63 @@ var _createClass3 = _interopRequireDefault(_createClass2);
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-var socketCluster = require('socketcluster-client');
+var socketClient = require('socketcluster-client');
 var common = require('masq-common');
 
-var Server = function () {
-  function Server(myID) {
-    (0, _classCallCheck3.default)(this, Server);
+// default settings
+var DEFAULTS = {
+  hostname: 'localhost',
+  port: 8000,
+  multiplex: false,
+  autoReconnectOptions: {
+    randomness: 1000,
+    multiplier: 1.5,
+    maxDelay: 7000
+  }
+};
 
-    this.ID = myID || common.generateUUID();
+var Client = function () {
+  function Client(options) {
+    (0, _classCallCheck3.default)(this, Client);
+
+    this.options = DEFAULTS;
+    if (options && options.hostname) {
+      this.options.hostname = options.hostname;
+    }
+    if (options && options.port) {
+      this.options.port = options.port;
+    }
+    if (options && options.autoReconnectOptions) {
+      this.options.autoReconnectOptions = options.autoReconnectOptions;
+    }
+    if (options && options.id) {
+      this.options.id = options.id;
+    }
+    if (options && options.multiplex) {
+      this.options.multiplex = options.multiplex;
+    }
+    this.ID = this.options.id || common.generateUUID();
     this.channels = {};
+    this.socket = undefined;
     this.myChannel = undefined;
   }
+
   /**
-   * Create a new socketCluster WebSocket connection.
+   * Init a new socketClient connection.
    *
-   * @param   {object} options Optional parameters
-   * @return  {object} The WebSocket client
+   * @return  {Promise} Promise resolves/rejects upon connection or errors
    */
 
 
-  (0, _createClass3.default)(Server, [{
+  (0, _createClass3.default)(Client, [{
     key: 'init',
-    value: function init(options) {
+    value: function init() {
       var _this = this;
 
       var self = this;
-      if (!options || Object.prototype.toString.call(options) !== '[object Object]') {
-        // default settings
-        options = {
-          hostname: 'selfhost',
-          port: 8000,
-          autoReconnectOptions: {
-            randomness: 1000,
-            multiplier: 1.5,
-            maxDelay: 7000
-          }
-        };
-      }
 
       return new Promise(function (resolve, reject) {
-        self.socket = socketCluster.create(options);
-
-        // if (self.ID === 'foo') console.log(self.socket)
+        self.socket = new socketClient.create(self.options);
 
         self.socket.on('error', function (err) {
           return reject(err);
@@ -90,9 +105,11 @@ var Server = function () {
       });
     }
 
-    // authorized (from) {
-    //   let self = this
-    // }
+    /**
+     * Subscribe this client to its own channel.
+     *
+     * @return  {object} The WebSocket client
+     */
 
   }, {
     key: 'subscribeSelf',
@@ -128,6 +145,15 @@ var Server = function () {
         }
       });
     }
+
+    /**
+     * Subscribe peer to a given channel.
+     * 
+     * @param   {string} peer A peer (device)
+     * @param   {boolean} batch Whether to batch requests for increased perfomance
+     * @return  {Promise} Promise resolves/rejects upon subscription or errors
+     */
+
   }, {
     key: 'subscribePeer',
     value: function subscribePeer(peer) {
@@ -157,21 +183,14 @@ var Server = function () {
         });
       });
     }
-  }, {
-    key: 'unsubscribePeer',
-    value: function unsubscribePeer(peer) {
-      var _this3 = this;
 
-      return new Promise(function (resolve, reject) {
-        var self = _this3;
-        if (!peer || peer.length === 0 || self.channels[peer] === undefined) {
-          return reject(new Error('Invalid peer value'));
-        }
-        self.channels[peer].socket.unsubscribe();
-        delete self.channels[peer];
-        return resolve();
-      });
-    }
+    /**
+     * Subscribe a list of peers to a given channel.
+     *
+     * @param   {array} peers List of peers (devices)
+     * @return  {Promise} Promise resolves/rejects upon subscription or errors
+     */
+
   }, {
     key: 'subscribePeers',
     value: function subscribePeers() {
@@ -193,8 +212,31 @@ var Server = function () {
     }
 
     /**
-     * Deterministically elect a master device. The first element of a alphabetically
-     * ordered list of peers.
+     * Unsubscribe peer from a given channel.
+     * 
+     * @param   {string} peer A peer (device)
+     * @return  {Promise} Promise resolves/rejects upon unsubscription or errors
+     */
+
+  }, {
+    key: 'unsubscribePeer',
+    value: function unsubscribePeer(peer) {
+      var _this3 = this;
+
+      return new Promise(function (resolve, reject) {
+        var self = _this3;
+        if (!peer || peer.length === 0 || self.channels[peer] === undefined) {
+          return reject(new Error('Invalid peer value'));
+        }
+        self.channels[peer].socket.unsubscribe();
+        delete self.channels[peer];
+        return resolve();
+      });
+    }
+
+    /**
+     * Deterministically elect a master device, by using the first element of a 
+     * alphabetically ordered list of peers.
      *
      * @param   {array} peers List of peers (devices)
      * @return  {string} The peer ID of the master
@@ -211,7 +253,7 @@ var Server = function () {
       return peers[0];
     }
   }]);
-  return Server;
+  return Client;
 }();
 
-module.exports.Server = Server;
+module.exports.Client = Client;
