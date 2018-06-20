@@ -4,7 +4,7 @@ import common from 'masq-common'
 // default settings
 const DEFAULTS = {
   hostname: 'localhost',
-  port: 8000,
+  port: 9009,
   multiplex: false,
   autoReconnectOptions: {
     randomness: 1000,
@@ -13,6 +13,11 @@ const DEFAULTS = {
   }
 }
 
+/**
+   * Client class.
+   *
+   * @param  {Object} options List of constructor parameters
+   */
 class Client {
   constructor (options) {
     this.options = DEFAULTS

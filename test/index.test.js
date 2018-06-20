@@ -1,19 +1,17 @@
 import socketClusterServer from 'socketcluster-server'
 import MasqSync from '../src/index'
 
-const options = {
+const OPTIONS = {
   hostname: 'localhost',
-  port: 8008
+  port: 9009
 }
-
-const DEFAULTURL = 'http://localhost:8000/socketcluster/'
 
 let server
 const nrPeers = 3
 
 // Start WebSocket server
 beforeAll((done) => {
-  server = socketClusterServer.listen(options.port)
+  server = socketClusterServer.listen(OPTIONS.port)
   server.on('closure', () => {})
   server.on('disconnection', () => {})
   server.once('ready', () => {
@@ -32,13 +30,13 @@ describe('Bootstrapping tests', () => {
   })
 })
 
-describe('MasqSync.Client should failt to init', async () => {
-  it('when none are provided', async () => {
+describe('Client should failt to init', async () => {
+  it('when no params are provided', async () => {
     const client = new MasqSync.Client()
     await expect(client.init()).rejects.toBeDefined()
   })
 
-  it('when provided server is not reachable or is down', async () => {
+  it('when the provided server is not reachable', async () => {
     const opts = {hostname: 'localhost', port: 9999}
     const client = new MasqSync.Client(opts)
     await expect(client.init()).rejects.toBeDefined()
@@ -51,7 +49,7 @@ describe('Peers', () => {
 
   beforeAll((done) => {
     for (let i = 0; i < nrPeers; i++) {
-      clients.push(new MasqSync.Client(options))
+      clients.push(new MasqSync.Client(OPTIONS))
     }
     // each peer has a list of IDs of other peers
     let pending = []
@@ -105,7 +103,7 @@ describe('Peers', () => {
   })
 
   it('should subscribe to new peers on pings', async () => {
-    const client = new MasqSync.Client(options)
+    const client = new MasqSync.Client(OPTIONS)
     await client.init()
     await client.subscribePeer(clients[0].ID)
 
