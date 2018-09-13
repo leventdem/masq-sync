@@ -14,28 +14,14 @@ const DEFAULTS = {
 }
 
 /**
-   * Client class.
-   *
-   * @param  {Object} options List of constructor parameters
-   */
+ * Client class.
+ *
+ * @param  {Object} options List of constructor parameters
+ */
 class Client {
   constructor (options) {
-    this.options = DEFAULTS
-    if (options && options.hostname) {
-      this.options.hostname = options.hostname
-    }
-    if (options && options.port) {
-      this.options.port = options.port
-    }
-    if (options && options.autoReconnectOptions) {
-      this.options.autoReconnectOptions = options.autoReconnectOptions
-    }
-    if (options && options.id) {
-      this.options.id = options.id
-    }
-    if (options && options.multiplex) {
-      this.options.multiplex = options.multiplex
-    }
+    // override default options
+    this.options = Object.assign(DEFAULTS, options)
     this.ID = this.options.id || common.generateUUID()
     this.channels = {}
     this.socket = undefined
@@ -48,22 +34,20 @@ class Client {
    * @return  {Promise} Promise resolves/rejects upon connection or errors
    */
   init () {
-    let self = this
-
     return new Promise((resolve, reject) => {
-      self.socket = socketClient.create(self.options)
+      this.socket = socketClient.create(this.options)
 
-      self.socket.on('error', (err) => {
+      this.socket.on('error', (err) => {
         return reject(err)
       })
 
-      self.socket.on('close', (err) => {
+      this.socket.on('close', (err) => {
         return reject(err)
       })
 
-      self.socket.on('connect', async () => {
+      this.socket.on('connect', async () => {
         // Also subscribe this client to its own channel by default
-        await self.subscribeSelf()
+        await this.subscribeSelf()
         return resolve()
       })
     })
@@ -75,24 +59,22 @@ class Client {
    * @return  {object} The WebSocket client
    */
   subscribeSelf () {
-    let self = this
-
-    self.myChannel = self.socket.subscribe(self.ID)
-    self.myChannel.watch((msg) => {
+    this.myChannel = this.socket.subscribe(this.ID)
+    this.myChannel.watch(msg => {
       if (msg.from) {
         // console.log(`New msg in my channel:`, msg)
         if (msg.event === 'ping') {
           var data = {
             event: 'pong',
-            from: self.ID
+            from: this.ID
           }
-          if (!self.channels[msg.from]) {
+          if (!this.channels[msg.from]) {
             // Subscribe to that user
-            self.channels[msg.from] = {
-              socket: self.socket.subscribe(msg.from)
+            this.channels[msg.from] = {
+              socket: this.socket.subscribe(msg.from)
             }
           }
-          self.channels[msg.from].socket.publish(data)
+          this.channels[msg.from].socket.publish(data)
           // console.log('Channel up with ' + msg.from)
         }
       // Set up shared room
@@ -119,20 +101,19 @@ class Client {
       if (!peer || peer.length === 0) {
         return reject(new Error('Invalid peer value'))
       }
-      let self = this
-      self.channels[peer] = {
-        socket: self.socket.subscribe(peer, {
+      this.channels[peer] = {
+        socket: this.socket.subscribe(peer, {
           batch: batch
         })
       }
-      self.channels[peer].socket.on('subscribe', () => {
-        self.channels[peer].socket.publish({
+      this.channels[peer].socket.on('subscribe', () => {
+        this.channels[peer].socket.publish({
           event: 'ping',
-          from: self.ID
+          from: this.ID
         })
         return resolve()
       })
-      self.channels[peer].socket.on('subscribeFail', () => {
+      this.channels[peer].socket.on('subscribeFail', () => {
         return reject(new Error('Subscribe failed'))
       })
     })
@@ -148,10 +129,9 @@ class Client {
     if (!Array.isArray(peers)) {
       return Promise.reject(new Error('Invalid peer list'))
     }
-    let self = this
     let pending = []
     peers.forEach((peer) => {
-      const sub = self.subscribePeer(peer, true)
+      const sub = this.subscribePeer(peer, true)
       sub.catch(() => {
         // do something with err
       })
@@ -168,12 +148,11 @@ class Client {
    */
   unsubscribePeer (peer) {
     return new Promise((resolve, reject) => {
-      let self = this
-      if (!peer || peer.length === 0 || self.channels[peer] === undefined) {
+      if (!peer || peer.length === 0 || this.channels[peer] === undefined) {
         return reject(new Error('Invalid peer value'))
       }
-      self.channels[peer].socket.unsubscribe()
-      delete self.channels[peer]
+      this.channels[peer].socket.unsubscribe()
+      delete this.channels[peer]
       return resolve()
     })
   }
@@ -186,8 +165,7 @@ class Client {
    * @return  {string} The peer ID of the master
    */
   electMaster (peers = []) {
-    let self = this
-    peers.push(self.ID)
+    peers.push(this.ID)
     peers.sort()
     return peers[0]
   }
