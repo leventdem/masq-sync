@@ -30,12 +30,7 @@ describe('Bootstrapping tests', () => {
   })
 })
 
-describe('Client should failt to init', async () => {
-  it('when no params are provided', async () => {
-    const client = new MasqSync.Client()
-    await expect(client.init()).rejects.toBeDefined()
-  })
-
+describe('Client should fail to init', async () => {
   it('when the provided server is not reachable', async () => {
     const opts = {hostname: 'localhost', port: 9999}
     const client = new MasqSync.Client(opts)

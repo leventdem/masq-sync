@@ -16,23 +16,33 @@ var _createClass2 = require('babel-runtime/helpers/createClass');
 
 var _createClass3 = _interopRequireDefault(_createClass2);
 
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+var _socketclusterClient = require('socketcluster-client');
 
-var socketClient = require('socketcluster-client');
-var common = require('masq-common');
+var _socketclusterClient2 = _interopRequireDefault(_socketclusterClient);
+
+var _masqCommon = require('masq-common');
+
+var _masqCommon2 = _interopRequireDefault(_masqCommon);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 // default settings
 var DEFAULTS = {
   hostname: 'localhost',
-  port: 8000,
+  port: 9009,
   multiplex: false,
   autoReconnectOptions: {
     randomness: 1000,
     multiplier: 1.5,
     maxDelay: 7000
   }
-};
 
+  /**
+     * Client class.
+     *
+     * @param  {Object} options List of constructor parameters
+     */
+};
 var Client = function () {
   function Client(options) {
     (0, _classCallCheck3.default)(this, Client);
@@ -53,7 +63,7 @@ var Client = function () {
     if (options && options.multiplex) {
       this.options.multiplex = options.multiplex;
     }
-    this.ID = this.options.id || common.generateUUID();
+    this.ID = this.options.id || _masqCommon2.default.generateUUID();
     this.channels = {};
     this.socket = undefined;
     this.myChannel = undefined;
@@ -74,7 +84,7 @@ var Client = function () {
       var self = this;
 
       return new Promise(function (resolve, reject) {
-        self.socket = new socketClient.create(self.options);
+        self.socket = new _socketclusterClient2.default.create(self.options);
 
         self.socket.on('error', function (err) {
           return reject(err);
