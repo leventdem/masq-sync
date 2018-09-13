@@ -32,7 +32,7 @@ describe('Bootstrapping tests', () => {
 
 describe('Client should fail to init', async () => {
   it('when the provided server is not reachable', async () => {
-    const opts = {hostname: 'localhost', port: 9999}
+    const opts = { hostname: 'localhost', port: 9999 }
     const client = new MasqSync.Client(opts)
     await expect(client.init()).rejects.toBeDefined()
   })
@@ -84,7 +84,7 @@ describe('Peers', () => {
     await clients[0].subscribePeers()
     expect(Object.keys(clients[0].channels).length).toEqual(0)
   })
-  
+
   it('should subscribe to other peers', async () => {
     clients.forEach(async (client) => {
       await client.subscribePeers(peers[client.ID])

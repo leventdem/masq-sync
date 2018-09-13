@@ -51,7 +51,7 @@ class Client {
     let self = this
 
     return new Promise((resolve, reject) => {
-      self.socket = new socketClient.create(self.options)
+      self.socket = socketClient.create(self.options)
 
       self.socket.on('error', (err) => {
         return reject(err)
@@ -95,21 +95,21 @@ class Client {
           self.channels[msg.from].socket.publish(data)
           // console.log('Channel up with ' + msg.from)
         }
-        // Set up shared room
-        // if (msg.event === 'pong') {
-          // console.log('Channel up with ' + msg.from)
-          // if (!self.room && msg.key) {
-            // self.room = msg.key
-            // joinRoom()
-          // }
+      // Set up shared room
+      // if (msg.event === 'pong') {
+        // console.log('Channel up with ' + msg.from)
+        // if (!self.room && msg.key) {
+        // self.room = msg.key
+        // joinRoom()
         // }
+      // }
       }
     })
   }
 
   /**
    * Subscribe peer to a given channel.
-   * 
+   *
    * @param   {string} peer A peer (device)
    * @param   {boolean} batch Whether to batch requests for increased perfomance
    * @return  {Promise} Promise resolves/rejects upon subscription or errors
@@ -160,10 +160,9 @@ class Client {
     return Promise.all(pending)
   }
 
-
   /**
    * Unsubscribe peer from a given channel.
-   * 
+   *
    * @param   {string} peer A peer (device)
    * @return  {Promise} Promise resolves/rejects upon unsubscription or errors
    */
@@ -180,7 +179,7 @@ class Client {
   }
 
   /**
-   * Deterministically elect a master device, by using the first element of a 
+   * Deterministically elect a master device, by using the first element of a
    * alphabetically ordered list of peers.
    *
    * @param   {array} peers List of peers (devices)

@@ -84,7 +84,7 @@ var Client = function () {
       var self = this;
 
       return new Promise(function (resolve, reject) {
-        self.socket = new _socketclusterClient2.default.create(self.options);
+        self.socket = _socketclusterClient2.default.create(self.options);
 
         self.socket.on('error', function (err) {
           return reject(err);
@@ -158,7 +158,7 @@ var Client = function () {
 
     /**
      * Subscribe peer to a given channel.
-     * 
+     *
      * @param   {string} peer A peer (device)
      * @param   {boolean} batch Whether to batch requests for increased perfomance
      * @return  {Promise} Promise resolves/rejects upon subscription or errors
@@ -223,7 +223,7 @@ var Client = function () {
 
     /**
      * Unsubscribe peer from a given channel.
-     * 
+     *
      * @param   {string} peer A peer (device)
      * @return  {Promise} Promise resolves/rejects upon unsubscription or errors
      */
@@ -245,7 +245,7 @@ var Client = function () {
     }
 
     /**
-     * Deterministically elect a master device, by using the first element of a 
+     * Deterministically elect a master device, by using the first element of a
      * alphabetically ordered list of peers.
      *
      * @param   {array} peers List of peers (devices)
