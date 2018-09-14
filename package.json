@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "babel src --presets env --out-dir dist/",
-    "test": "jest test/*.test.js --runInBand --verbose --coverage --forceExit",
+    "test": "standard && jest test/*.test.js --runInBand --verbose --coverage --forceExit",
     "watch": "jest --watch",
     "prepublish": "npm run build"
   },
@@ -15,18 +15,28 @@
   },
   "license": "MIT",
   "devDependencies": {
-    "babel-plugin-transform-runtime": "^6.23.0",
     "babel-cli": "^6.26.0",
-    "babel-preset-env": "^1.6.1",
+    "babel-plugin-transform-runtime": "^6.23.0",
+    "babel-preset-env": "^1.7.0",
     "babel-runtime": "^6.26.0",
     "coveralls": "^3.0.0",
-    "http-server": "^0.10.0",
     "jest": "^22.3.0",
-    "socketcluster-server": "^10.0.1"
+    "socketcluster-server": "^10.0.1",
+    "standard": "^12.0.1"
   },
   "dependencies": {
-    "sc-codec-min-bin": "^3.0.0",
-    "socketcluster-client": "^10.1.1",
+    "socketcluster-client": "^14.1.0",
     "masq-common": "git+https://github.com/QwantResearch/masq-common.git"
+  },
+  "standard": {
+    "ignore": [
+      "dist"
+    ],
+    "env": [
+      "jest"
+    ]
+  },
+  "jest": {
+    "testURL": "http://localhost"
   }
 }
