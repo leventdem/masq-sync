@@ -1,4 +1,4 @@
-# masq-store
+# masq-sync
 
 [![](https://img.shields.io/badge/project-Masq-7C4DFF.svg?style=flat-square)](https://github.com/QwantResearch/masq-sync)
 [![](https://api.travis-ci.org/QwantResearch/masq-sync.svg)](https://travis-ci.org/QwantResearch/masq-sync)
