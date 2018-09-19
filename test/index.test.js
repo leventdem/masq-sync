@@ -38,6 +38,36 @@ describe('Client should fail to init', async () => {
   })
 })
 
+describe('Initial key exchange', () => {
+  it('should join a secret channel', async () => {
+    const channel = 'secretChannel'
+    const client = new MasqSync.Client(OPTIONS)
+    await client.init()
+    client.exchangeKeys(channel, 'symKey')
+    expect(Object.keys(client.channels)).toContain(channel)
+    client.channels[channel].destroy()
+  })
+
+  it('2 clients should exchange their public keys through the secret channel', async () => {
+    const channel = 'secretChannel'
+    const c1 = new MasqSync.Client(OPTIONS)
+    const c2 = new MasqSync.Client(OPTIONS)
+
+    await Promise.all([
+      c1.init(),
+      c2.init()
+    ])
+
+    const res = await Promise.all([
+      c1.exchangeKeys(channel, 'symKey1', 'publicKey1'),
+      c2.exchangeKeys(channel, 'symKey2', 'publicKey2')
+    ])
+
+    expect(res[0].key).toBe('publicKey2')
+    expect(res[1].key).toBe('publicKey1')
+  })
+})
+
 describe('Peers', () => {
   let clients = []
   let peers = {}

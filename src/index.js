@@ -54,6 +54,45 @@ class Client {
   }
 
   /**
+   * Join another peer, by exchanging public keys
+   * through a secret channel, encrypted with a symmetric key
+   */
+  exchangeKeys (secretChannel, symKey, pubKey) {
+    return new Promise((resolve, reject) => {
+      // TODO: check params
+      const ch = this.socket.subscribe(secretChannel)
+      this.channels[secretChannel] = ch
+
+      const publishReady = () =>
+        ch.publish({ event: 'ready', from: this.ID })
+
+      // Send our key through the channel
+      // TODO: generate key and encrypt it with symKey
+      const publishKey = () =>
+        ch.publish({ event: 'publicKey', from: this.ID, key: pubKey })
+
+      publishReady()
+
+      ch.watch(msg => {
+        // ignore our messages
+        if (msg.from === this.ID) return
+
+        if (msg.event === 'ready') return publishKey()
+
+        if (msg.event === 'publicKey') {
+          // TODO: encrypt/decrypt key using masq-crypto
+          if (!msg.from || !msg.key) return
+
+          this.socket.unsubscribe(secretChannel)
+          delete this.channels[secretChannel]
+          publishKey()
+          resolve(msg)
+        }
+      })
+    })
+  }
+
+  /**
    * Subscribe this client to its own channel.
    *
    * @return  {object} The WebSocket client
