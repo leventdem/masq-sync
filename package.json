@@ -26,7 +26,8 @@
   },
   "dependencies": {
     "socketcluster-client": "^14.1.0",
-    "masq-common": "git+https://github.com/QwantResearch/masq-common.git"
+    "masq-common": "git+https://github.com/QwantResearch/masq-common.git",
+    "masq-crypto": "git+https://github.com/QwantResearch/masq-crypto.git"
   },
   "standard": {
     "ignore": [

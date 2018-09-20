@@ -1,5 +1,6 @@
 import socketClient from 'socketcluster-client'
 import common from 'masq-common'
+import MasqCrypto from 'masq-crypto'
 
 // default settings
 const DEFAULTS = {
@@ -56,24 +57,34 @@ class Client {
   /**
    * Join another peer, by exchanging public keys
    * through a secret channel, encrypted with a symmetric key
+   * @param {string} secretChannel - The channel name
+   * @param {string} symKey - The hexadecimal string of the symmetric key (128bits)
+   * @param {string} pubKey - The public key
+   * @returns {Promise}
    */
+
   exchangeKeys (secretChannel, symKey, pubKey) {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       // TODO: check params
       const ch = this.socket.subscribe(secretChannel)
       this.channels[secretChannel] = ch
 
+      const cipherAES = new MasqCrypto.AES({
+        mode: MasqCrypto.aesModes.GCM,
+        key: symKey,
+        keySize: 128
+      })
+      const encPublicKey = await cipherAES.encrypt(pubKey)
+
       const publishReady = () =>
         ch.publish({ event: 'ready', from: this.ID })
-
       // Send our key through the channel
-      // TODO: generate key and encrypt it with symKey
       const publishKey = () =>
-        ch.publish({ event: 'publicKey', from: this.ID, key: pubKey })
+        ch.publish({ event: 'publicKey', from: this.ID, key: encPublicKey })
 
       publishReady()
 
-      ch.watch(msg => {
+      ch.watch(async (msg) => {
         // ignore our messages
         if (msg.from === this.ID) return
 
@@ -83,10 +94,15 @@ class Client {
           // TODO: encrypt/decrypt key using masq-crypto
           if (!msg.from || !msg.key) return
 
+          const decPublicKey = await cipherAES.decrypt(msg.key)
           this.socket.unsubscribe(secretChannel)
           delete this.channels[secretChannel]
           publishKey()
-          resolve(msg)
+          resolve({
+            from: msg.from,
+            event: msg.event,
+            key: decPublicKey
+          })
         }
       })
     })

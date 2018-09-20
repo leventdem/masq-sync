@@ -24,6 +24,10 @@ var _masqCommon = require('masq-common');
 
 var _masqCommon2 = _interopRequireDefault(_masqCommon);
 
+var _masqCrypto = require('masq-crypto');
+
+var _masqCrypto2 = _interopRequireDefault(_masqCrypto);
+
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 // default settings
@@ -100,6 +104,130 @@ var Client = function () {
     }
 
     /**
+     * Join another peer, by exchanging public keys
+     * through a secret channel, encrypted with a symmetric key
+     */
+
+  }, {
+    key: 'exchangeKeys',
+    value: function exchangeKeys(secretChannel, symKey, pubKey) {
+      var _this2 = this;
+
+      return new Promise(function () {
+        var _ref2 = (0, _asyncToGenerator3.default)( /*#__PURE__*/_regenerator2.default.mark(function _callee3(resolve, reject) {
+          var ch, cipherAES, encPublicKey, publishReady, publishKey;
+          return _regenerator2.default.wrap(function _callee3$(_context3) {
+            while (1) {
+              switch (_context3.prev = _context3.next) {
+                case 0:
+                  // TODO: check params
+                  ch = _this2.socket.subscribe(secretChannel);
+
+                  _this2.channels[secretChannel] = ch;
+
+                  cipherAES = new _masqCrypto2.default.AES({
+                    mode: _masqCrypto2.default.aesModes.GCM,
+                    key: symKey,
+                    keySize: 128
+                  });
+                  _context3.next = 5;
+                  return cipherAES.encrypt(pubKey);
+
+                case 5:
+                  encPublicKey = _context3.sent;
+
+                  publishReady = function publishReady() {
+                    return ch.publish({ event: 'ready', from: _this2.ID });
+                  };
+                  // Send our key through the channel
+                  // TODO: generate key and encrypt it with symKey
+
+
+                  publishKey = function publishKey() {
+                    return ch.publish({ event: 'publicKey', from: _this2.ID, key: encPublicKey });
+                  };
+
+                  publishReady();
+
+                  ch.watch(function () {
+                    var _ref3 = (0, _asyncToGenerator3.default)( /*#__PURE__*/_regenerator2.default.mark(function _callee2(msg) {
+                      var decPublicKey;
+                      return _regenerator2.default.wrap(function _callee2$(_context2) {
+                        while (1) {
+                          switch (_context2.prev = _context2.next) {
+                            case 0:
+                              if (!(msg.from === _this2.ID)) {
+                                _context2.next = 2;
+                                break;
+                              }
+
+                              return _context2.abrupt('return');
+
+                            case 2:
+                              if (!(msg.event === 'ready')) {
+                                _context2.next = 4;
+                                break;
+                              }
+
+                              return _context2.abrupt('return', publishKey());
+
+                            case 4:
+                              if (!(msg.event === 'publicKey')) {
+                                _context2.next = 14;
+                                break;
+                              }
+
+                              if (!(!msg.from || !msg.key)) {
+                                _context2.next = 7;
+                                break;
+                              }
+
+                              return _context2.abrupt('return');
+
+                            case 7:
+                              _context2.next = 9;
+                              return cipherAES.decrypt(pubKey);
+
+                            case 9:
+                              decPublicKey = _context2.sent;
+
+                              _this2.socket.unsubscribe(secretChannel);
+                              delete _this2.channels[secretChannel];
+                              publishKey();
+                              resolve({
+                                from: msg.from,
+                                event: msg.event,
+                                key: decPublicKey
+                              });
+
+                            case 14:
+                            case 'end':
+                              return _context2.stop();
+                          }
+                        }
+                      }, _callee2, _this2);
+                    }));
+
+                    return function (_x3) {
+                      return _ref3.apply(this, arguments);
+                    };
+                  }());
+
+                case 10:
+                case 'end':
+                  return _context3.stop();
+              }
+            }
+          }, _callee3, _this2);
+        }));
+
+        return function (_x, _x2) {
+          return _ref2.apply(this, arguments);
+        };
+      }());
+    }
+
+    /**
      * Subscribe this client to its own channel.
      *
      * @return  {object} The WebSocket client
@@ -108,7 +236,7 @@ var Client = function () {
   }, {
     key: 'subscribeSelf',
     value: function subscribeSelf() {
-      var _this2 = this;
+      var _this3 = this;
 
       this.myChannel = this.socket.subscribe(this.ID);
       this.myChannel.watch(function (msg) {
@@ -117,15 +245,15 @@ var Client = function () {
           if (msg.event === 'ping') {
             var data = {
               event: 'pong',
-              from: _this2.ID
+              from: _this3.ID
             };
-            if (!_this2.channels[msg.from]) {
+            if (!_this3.channels[msg.from]) {
               // Subscribe to that user
-              _this2.channels[msg.from] = {
-                socket: _this2.socket.subscribe(msg.from)
+              _this3.channels[msg.from] = {
+                socket: _this3.socket.subscribe(msg.from)
               };
             }
-            _this2.channels[msg.from].socket.publish(data);
+            _this3.channels[msg.from].socket.publish(data);
             // console.log('Channel up with ' + msg.from)
           }
           // Set up shared room
@@ -151,7 +279,7 @@ var Client = function () {
   }, {
     key: 'subscribePeer',
     value: function subscribePeer(peer) {
-      var _this3 = this;
+      var _this4 = this;
 
       var batch = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : false;
 
@@ -159,19 +287,19 @@ var Client = function () {
         if (!peer || peer.length === 0) {
           return reject(new Error('Invalid peer value'));
         }
-        _this3.channels[peer] = {
-          socket: _this3.socket.subscribe(peer, {
+        _this4.channels[peer] = {
+          socket: _this4.socket.subscribe(peer, {
             batch: batch
           })
         };
-        _this3.channels[peer].socket.on('subscribe', function () {
-          _this3.channels[peer].socket.publish({
+        _this4.channels[peer].socket.on('subscribe', function () {
+          _this4.channels[peer].socket.publish({
             event: 'ping',
-            from: _this3.ID
+            from: _this4.ID
           });
           return resolve();
         });
-        _this3.channels[peer].socket.on('subscribeFail', function () {
+        _this4.channels[peer].socket.on('subscribeFail', function () {
           return reject(new Error('Subscribe failed'));
         });
       });
@@ -187,7 +315,7 @@ var Client = function () {
   }, {
     key: 'subscribePeers',
     value: function subscribePeers() {
-      var _this4 = this;
+      var _this5 = this;
 
       var peers = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : [];
 
@@ -196,7 +324,7 @@ var Client = function () {
       }
       var pending = [];
       peers.forEach(function (peer) {
-        var sub = _this4.subscribePeer(peer, true);
+        var sub = _this5.subscribePeer(peer, true);
         sub.catch(function () {
           // do something with err
         });
@@ -215,14 +343,14 @@ var Client = function () {
   }, {
     key: 'unsubscribePeer',
     value: function unsubscribePeer(peer) {
-      var _this5 = this;
+      var _this6 = this;
 
       return new Promise(function (resolve, reject) {
-        if (!peer || peer.length === 0 || _this5.channels[peer] === undefined) {
+        if (!peer || peer.length === 0 || _this6.channels[peer] === undefined) {
           return reject(new Error('Invalid peer value'));
         }
-        _this5.channels[peer].socket.unsubscribe();
-        delete _this5.channels[peer];
+        _this6.channels[peer].socket.unsubscribe();
+        delete _this6.channels[peer];
         return resolve();
       });
     }

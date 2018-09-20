@@ -1,5 +1,20 @@
 import socketClusterServer from 'socketcluster-server'
 import MasqSync from '../src/index'
+// import MasqCrypto from 'masq-crypto'
+jest.mock('masq-crypto')
+
+// console.log(MasqCrypto)
+// const cipherAES = new MasqCrypto.AES({
+//   mode: MasqCrypto.aesModes.GCM,
+//   key: 'symKey',
+//   keySize: 128
+// })
+// cipherAES.encrypt('pubKey')
+//   .then(res => {
+//     console.log(res)
+//     return cipherAES.decrypt(res)
+//   })
+//   .then(res => console.log(res))
 
 const OPTIONS = {
   hostname: 'localhost',
