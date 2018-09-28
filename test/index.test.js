@@ -53,35 +53,86 @@ describe('Client should fail to init', async () => {
   })
 })
 
-describe('Initial key exchange', () => {
-  it('should join a secret channel', async () => {
-    const channel = 'secretChannel'
-    const client = new MasqSync.Client(OPTIONS)
-    await client.init()
-    client.exchangeKeys(channel, 'symKey')
-    expect(Object.keys(client.channels)).toContain(channel)
-    client.channels[channel].destroy()
-  })
+// describe('Initial key exchange', () => {
+//   it('should join a secret channel', async () => {
+//     const channel = 'secretChannel'
+//     const client = new MasqSync.Client(OPTIONS)
+//     await client.init()
+//     await client.subscribePeer(channel)
+//     expect(Object.keys(client.channels)).toContain(channel)
+//     client.channels[channel].socket.destroy()
+//   })
 
-  it('2 clients should exchange their public keys through the secret channel', async () => {
-    const channel = 'secretChannel'
-    const c1 = new MasqSync.Client(OPTIONS)
-    const c2 = new MasqSync.Client(OPTIONS)
+//   // it('2 clients should exchange their public keys : c1 initiates the exchange', async (done) => {
+//   //   const OPT = {
+//   //     hostname: 'localhost',
+//   //     port: 9009
+//   //   }
+//   //   const idPeer1 = 'peer1'
+//   //   OPT.id = idPeer1
+//   //   const c1 = new MasqSync.Client(OPT)
+//   //   const idPeer2 = 'peer2'
+//   //   OPT.id = idPeer2
+//   //   const c2 = new MasqSync.Client(OPT)
 
-    await Promise.all([
-      c1.init(),
-      c2.init()
-    ])
+//   //   await Promise.all([
+//   //     c1.init(),
+//   //     c2.init()
+//   //   ])
+//   //   await c1.subscribePeer(idPeer2)
+//   //   c1.on('RSAPublicKey', (key) => {
+//   //     // console.log(` Signal peer1 : from ${key.from} : ${key.key}`)
+//   //     expect(key.from).toBe(idPeer2)
+//   //     expect(key.key).toBe('RSAPublicKey' + idPeer2)
 
-    const res = await Promise.all([
-      c1.exchangeKeys(channel, 'symKey1', 'publicKey1'),
-      c2.exchangeKeys(channel, 'symKey2', 'publicKey2')
-    ])
+//   //     c1.socket.destroy()
+//   //     console.log(c1.socket)
 
-    expect(res[0].key).toBe('publicKey2')
-    expect(res[1].key).toBe('publicKey1')
-  })
-})
+//   //     // console.log((c1.myChannel.client.channels))
+//   //     // console.log(Object.keys(c1.myChannel))
+//   //     // console.log(Object.keys(c1.channels))
+//   //     // console.log(c1.channels[idPeer2])
+//   //     c1.socket.destroy()
+//   //     c2.socket.destroy()
+
+//   //     done()
+//   //   })
+//   //   c2.on('RSAPublicKey', (key) => {
+//   //     // console.log(` Signal peer2 : from ${key.from} : ${key.key}`)
+//   //     expect(key.from).toBe(idPeer1)
+//   //     expect(key.key).toBe('RSAPublicKey' + idPeer1)
+//   //   })
+//   //   c1.exchangeKeys(idPeer2, 'symKey1', 'RSAPublicKey')
+//   // })
+//   // it('2 clients should exchange their public keys : c2 initiates the exchange', async (done) => {
+//   //   const idPeer1 = 'peer01'
+//   //   OPTIONS.id = idPeer1
+//   //   const c1 = new MasqSync.Client(OPTIONS)
+//   //   const idPeer2 = 'peer02'
+//   //   OPTIONS.id = idPeer2
+//   //   const c2 = new MasqSync.Client(OPTIONS)
+//   //   delete OPTIONS.id
+
+//   //   await Promise.all([
+//   //     c1.init(),
+//   //     c2.init(),
+//   //     c1.subscribePeer(idPeer2),
+//   //     c2.subscribePeer(idPeer1)
+//   //   ])
+//   //   c1.on('RSAPublicKey', (key) => {
+//   //     console.log(` Signal peer1 : from ${key.from} : ${key.key}`)
+//   //     expect(key.from).toBe(idPeer2)
+//   //     expect(key.key).toBe('RSAPublicKey' + idPeer2)
+//   //   })
+//   //   c2.on('RSAPublicKey', (key) => {
+//   //     console.log(` Signal peer2 : from ${key.from} : ${key.key}`)
+//   //     expect(key.from).toBe(idPeer1)
+//   //     expect(key.key).toBe('RSAPublicKey' + idPeer1)
+//   //     done()
+//   //   })
+//   //   c2.exchangeKeys(idPeer1, 'symKey1', 'RSAPublicKey')
+//   // })
+// })
 
 describe('Peers', () => {
   let clients = []
@@ -149,8 +200,11 @@ describe('Peers', () => {
 
     expect(Object.keys(client.channels).length).toEqual(1)
 
+    console.log(Object.keys(client.channels))
     // wait a bit for the other clients to sub
-    await new Promise(resolve => setTimeout(resolve, 100))
+    await new Promise(resolve => setTimeout(resolve, 300))
+    console.log('2.0', Object.keys(clients[0].channels))
+    console.log('coucou')
 
     // check that the new client ID is listed in the previous ones
     expect(Object.keys(clients[0].channels).length).toEqual(3)

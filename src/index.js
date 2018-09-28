@@ -1,6 +1,7 @@
 import socketClient from 'socketcluster-client'
 import common from 'masq-common'
-import MasqCrypto from 'masq-crypto'
+// import MasqCrypto from 'masq-crypto'
+import EventEmitter from 'events'
 
 // default settings
 const DEFAULTS = {
@@ -13,14 +14,28 @@ const DEFAULTS = {
     maxDelay: 7000
   }
 }
+const debug = false
+var log = (...args) => {
+  const reg = (all, cur) => {
+    if (typeof (cur) === 'string') {
+      return all + cur
+    } else {
+      return all + cur.toString()
+    }
+  }
+  if (debug) {
+    console.log('[Masq sync]', args.reduce(reg, ''))
+  }
+}
 
 /**
  * Client class.
  *
  * @param  {Object} options List of constructor parameters
  */
-class Client {
+class Client extends EventEmitter {
   constructor (options) {
+    super()
     // override default options
     this.options = Object.assign(DEFAULTS, options)
     this.ID = this.options.id || common.generateUUID()
@@ -37,6 +52,7 @@ class Client {
   init () {
     return new Promise((resolve, reject) => {
       this.socket = socketClient.create(this.options)
+      this.setWatchers()
 
       this.socket.on('error', (err) => {
         return reject(err)
@@ -55,57 +71,79 @@ class Client {
   }
 
   /**
-   * Join another peer, by exchanging public keys
-   * through a secret channel, encrypted with a symmetric key
+   * Send a message to the channel
+   * @param {string} channel - The channel name
+   * @param {Message} msg -  The message
+   */
+  sendMessage (channel, msg) {
+    if (!this.channels[channel]) {
+      log('The channel is not a suscribed channel !')
+    }
+    this.channels[channel].socket.publish(msg)
+  }
+
+  /**
+   * Exchanging public keys
+   * through the other peer channel, encrypted with a symmetric key
    * @param {string} secretChannel - The channel name
    * @param {string} symKey - The hexadecimal string of the symmetric key (128bits)
    * @param {string} pubKey - The public key
    * @returns {Promise}
    */
 
-  exchangeKeys (secretChannel, symKey, pubKey) {
-    return new Promise(async (resolve, reject) => {
-      // TODO: check params
-      const ch = this.socket.subscribe(secretChannel)
-      this.channels[secretChannel] = ch
+  exchangeKeys (channel, symKey, pubKey) {
+    let msg = {
+      from: this.ID,
+      event: 'publicKey',
+      data: { key: pubKey + this.ID },
+      to: channel
+    }
+    this.sendMessage(msg.to, msg)
+  }
 
-      const cipherAES = new MasqCrypto.AES({
-        mode: MasqCrypto.aesModes.GCM,
-        key: symKey,
-        keySize: 128
-      })
-      const encPublicKey = await cipherAES.encrypt(pubKey)
+  setSymmetricKey (channel) {
+    let msg = {
+      from: this.ID,
+      event: 'initEcdh',
+      to: channel
+    }
+    this.sendMessage(msg.to, msg)
+  }
 
-      const publishReady = () =>
-        ch.publish({ event: 'ready', from: this.ID })
-      // Send our key through the channel
-      const publishKey = () =>
-        ch.publish({ event: 'publicKey', from: this.ID, key: encPublicKey })
+  sendData (channel, event, data) {
+    let msg = {
+      event: 'data',
+      from: this.ID,
+      data: data
+    }
+    this.sendMessage(channel, msg)
+    log('####### SEND ########')
+    log(`${msg.from} encrypts and sends data.`)
+    log('####### SEND ########')
+  }
 
-      publishReady()
-
-      ch.watch(async (msg) => {
-        // ignore our messages
-        if (msg.from === this.ID) return
-
-        if (msg.event === 'ready') return publishKey()
-
-        if (msg.event === 'publicKey') {
-          // TODO: encrypt/decrypt key using masq-crypto
-          if (!msg.from || !msg.key) return
-
-          const decPublicKey = await cipherAES.decrypt(msg.key)
-          this.socket.unsubscribe(secretChannel)
-          delete this.channels[secretChannel]
-          publishKey()
-          resolve({
-            from: msg.from,
-            event: msg.event,
-            key: decPublicKey
-          })
-        }
-      })
-    })
+  /**
+   * Set the global watchers
+   * Here we init ECDH to send data
+   */
+  setWatchers () {
+    if (!this.myChannel) {
+      this.myChannel = this.socket.subscribe(this.ID)
+    }
+    // TODO: check params
+    // const initEcdh = (channel) => {
+    //   let msg = {
+    //     event: 'initEcdh',
+    //     from: this.ID,
+    //     publicKey: 'mysecretKey' + this.ID.slice(0, 5),
+    //     signature: 'signature'
+    //   }
+    //   this.sendMessage(channel, msg)
+    //   log('####### SEND ########')
+    //   log(`${msg.from} sends publickKey and signature.`)
+    //   log('####### SEND ########')
+    // }
+    // Send our key through the channel
   }
 
   /**
@@ -115,9 +153,65 @@ class Client {
    */
   subscribeSelf () {
     this.myChannel = this.socket.subscribe(this.ID)
+    const initEcdhAck = (channel) => {
+      let msg = {
+        event: 'initEcdhAck',
+        from: this.ID,
+        publicKey: 'mysecretKey' + this.ID.slice(0, 5),
+        signature: 'signature'
+      }
+      this.sendMessage(channel, msg)
+      log('####### SEND ########')
+      log(`${msg.from} sends publickKey and signature.`)
+      log('####### SEND ########')
+    }
+
+    const readyToTransfer = (channel) => {
+      let msg = {
+        event: 'readyToTransfer',
+        from: this.ID,
+        data: ' ready'
+      }
+      this.sendMessage(channel, msg)
+      log('####### SEND ########')
+      log(`${msg.from} sends the final ready signal.`)
+      log('####### SEND ########')
+    }
+
+    const sendPublicKey = (channel) => {
+      let msg = {
+        event: 'publicKeyAck',
+        from: this.ID,
+        data: { key: 'RSAPublicKey' + this.ID }
+      }
+      this.sendMessage(channel, msg)
+      log('####### SEND ########')
+      log(`${msg.from} sends her public RSA key.`)
+      log('####### SEND ########')
+    }
+    const storePublicKey = (msg) => {
+      log('####### RECEIVE ########')
+      log(`From ${msg.from} : ${msg.data.key}`)
+      log('####### RECEIVE ########')
+      this.emit('RSAPublicKey', { key: msg.data.key, from: msg.from })
+    }
+
+    const deriveSecretKey = () => {
+      // log('------ ACTION ------')
+      // log(`${from} derives the secret symmetric key`)
+      // log('------ ACTION ------')
+      return 'derivedSymmetricKey'
+    }
+
+    const receiveData = (msg) => {
+      log('------ ACTION ------')
+      log(`${msg.from} decrypts data, msg is : ${msg.data}`)
+      log('------ ACTION ------')
+    }
+
     this.myChannel.watch(msg => {
       if (msg.from) {
-        // console.log(`New msg in my channel:`, msg)
+        // log(`New msg in my channel:`, msg)
         if (msg.event === 'ping') {
           var data = {
             event: 'pong',
@@ -130,16 +224,40 @@ class Client {
             }
           }
           this.channels[msg.from].socket.publish(data)
-          // console.log('Channel up with ' + msg.from)
+          // log('Channel up with ' + msg.from)
         }
-      // Set up shared room
-      // if (msg.event === 'pong') {
-        // console.log('Channel up with ' + msg.from)
-        // if (!self.room && msg.key) {
-        // self.room = msg.key
-        // joinRoom()
-        // }
-      // }
+        if (msg.event === 'initEcdh') {
+          log('****** RECEIVE ******')
+          log(`From ${msg.from} : ${Object.keys(msg)}`)
+          log('****** RECEIVE ******')
+          initEcdhAck(msg.from)
+        }
+
+        if (msg.event === 'initEcdhAck') {
+          log('****** RECEIVE ******')
+          log(`From ${msg.from} : ${Object.keys(msg)}`)
+          log('****** RECEIVE ******')
+          readyToTransfer(msg.from)
+          log('derived Key operation 1: OK', deriveSecretKey())
+          this.emit('initECDH', deriveSecretKey())
+        }
+        if (msg.event === 'readyToTransfer') {
+          log('****** RECEIVE ******')
+          log(`From ${msg.from} : readyToTransfer`)
+          log('****** RECEIVE ******')
+          log('derived Key operation 2 : OK', deriveSecretKey())
+          this.emit('initECDH', deriveSecretKey())
+        }
+        if (msg.event === 'channelKey') {
+          receiveData(msg)
+        }
+        if (msg.event === 'publicKey') {
+          storePublicKey(msg)
+          sendPublicKey(msg.from)
+        }
+        if (msg.event === 'publicKeyAck') {
+          storePublicKey(msg)
+        }
       }
     })
   }
