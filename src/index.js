@@ -91,6 +91,7 @@ class Client extends EventEmitter {
    * @param {boolean} params.ack - Indicate if this is a response to a previous event
    */
   sendRSAPublicKey (params) {
+    // get RSA public key and encrypt it
     let msg = {
       from: this.ID,
       event: 'publicKey',
@@ -99,9 +100,6 @@ class Client extends EventEmitter {
       ack: params.ack
     }
     this.sendMessage(msg.to, msg)
-    log('####### SEND ########')
-    log(`${msg.from} sends her public RSA key.`)
-    log('####### SEND ########')
   }
 
   /**
@@ -115,6 +113,7 @@ class Client extends EventEmitter {
    */
   sendECPublicKey (params) {
     // genECPublicKeys()
+    // encrypt EC public key
     let msg = {
       from: this.ID,
       event: 'ECPublicKey',
@@ -126,9 +125,6 @@ class Client extends EventEmitter {
       }
     }
     this.sendMessage(msg.to, msg)
-    log('####### SEND ########')
-    log(`${msg.from} sends EC publickKey and signature.`)
-    log('####### SEND ########')
   }
 
   /**
@@ -140,6 +136,7 @@ class Client extends EventEmitter {
    * @param {string} params.groupkey - The group key
    */
   sendChannelKey (params) {
+    // TODO encrypt
     let msg = {
       to: params.to,
       event: 'channelKey',
@@ -147,9 +144,6 @@ class Client extends EventEmitter {
       data: { key: params.groupkey }
     }
     this.sendMessage(msg.to, msg)
-    log('####### SEND ########')
-    log(`${msg.from} encrypts and sends data.`)
-    log('####### SEND ########')
   }
 
   /**
@@ -167,27 +161,15 @@ class Client extends EventEmitter {
         data: ' ready'
       }
       this.sendMessage(channel, msg)
-      log('####### SEND ########')
-      log(`${msg.from} sends the final ready signal.`)
-      log('####### SEND ########')
     }
 
     const storeRSAPublicKey = (msg) => {
-      log('####### RECEIVE ########')
-      log(`From ${msg.from} : ${msg.data.key}`)
-      log('####### RECEIVE ########')
       this.emit('RSAPublicKey', { key: msg.data.key, from: msg.from })
     }
     const storeECPublicKey = (msg) => {
-      log('####### RECEIVE ########')
-      log(`From ${msg.from} : ${msg.data.key}`)
-      log('####### RECEIVE ########')
     }
 
     const deriveSecretKey = () => {
-      // log('------ ACTION ------')
-      // log(`${from} derives the secret symmetric key`)
-      // log('------ ACTION ------')
       return 'derivedSymmetricKey'
     }
 
@@ -205,6 +187,10 @@ class Client extends EventEmitter {
     }
 
     this.myChannel.watch(msg => {
+      log('****** RECEIVE ******')
+      log(`From ${msg.from} : ${msg}`)
+      log('****** RECEIVE ******')
+
       if (msg.from === this.ID) return
       if (msg.from) {
         // log(`New msg in my channel:`, msg)
@@ -223,9 +209,6 @@ class Client extends EventEmitter {
           // log('Channel up with ' + msg.from)
         }
         if (msg.event === 'ECPublicKey') {
-          log('****** RECEIVE ******')
-          log(`From ${msg.from} : ${Object.keys(msg)}`)
-          log('****** RECEIVE ******')
           // If response : we already sent the key & signature
           if (msg.ack) {
             if (verifyReceivedECPublicKey(msg.data)) {
@@ -247,10 +230,6 @@ class Client extends EventEmitter {
           }
         }
         if (msg.event === 'readyToTransfer') {
-          log('****** RECEIVE ******')
-          log(`From ${msg.from} : readyToTransfer`)
-          log('****** RECEIVE ******')
-          log('derived Key operation 2 : OK', deriveSecretKey())
           this.emit('initECDH', { key: deriveSecretKey(), from: msg.from })
         }
         if (msg.event === 'channelKey') {
