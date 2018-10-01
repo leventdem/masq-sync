@@ -48,7 +48,63 @@ describe('Initial key exchange', () => {
     client.channels[channel].socket.destroy()
   })
 
-  it('2 clients should exchange their public keys : c1 initiates the exchange', async (done) => {
+  //   it('2 clients should exchange their public keys : c1 initiates the exchange', async (done) => {
+  //     const OPT = {
+  //       hostname: 'localhost',
+  //       port: 9009
+  //     }
+  //     const idPeer1 = 'peer1'
+  //     OPT.id = idPeer1
+  //     const c1 = new MasqSync.Client(OPT)
+  //     const idPeer2 = 'peer2'
+  //     OPT.id = idPeer2
+  //     const c2 = new MasqSync.Client(OPT)
+
+  //     await Promise.all([
+  //       c1.init(),
+  //       c2.init()
+  //     ])
+  //     await c1.subscribePeer(idPeer2)
+  //     c1.on('RSAPublicKey', async (key) => {
+  //       console.log(` Signal peer1 : from ${key.from} : ${key.key}`)
+  //       expect(key.from).toBe(idPeer2)
+  //       expect(key.key).toBe('RSAPublicKey' + idPeer2)
+
+  //       // await c1.socket.destroy()
+  //       // await new Promise(resolve => setTimeout(resolve, 100))
+  //       // console.log(Object.keys(c1.socket.channels))
+  //       // try {
+  //       //   await c1.unsubscribePeer(idPeer2)
+  //       // } catch (error) {
+  //       //   console.log(error)
+  //       // }
+  //       // console.log(Object.keys(c1.socket.channels))
+
+  //       // // console.log((c1.myChannel.client.channels))
+  //       // // console.log(Object.keys(c1.myChannel))
+  //       // // console.log(Object.keys(c1.channels))
+  //       // // console.log(c1.channels[idPeer2])
+  //       // c2.socket.destroy()
+
+//       done()
+//     })
+//     c2.on('RSAPublicKey', (key) => {
+//       console.log(` Signal peer2 : from ${key.from} : ${key.key}`)
+//       expect(key.from).toBe(idPeer1)
+//       expect(key.key).toBe('RSAPublicKey' + idPeer1)
+//     })
+//     let options = {
+//       to: idPeer2,
+//       symmetricKey: 'symKey1',
+//       publicKey: 'RSAPublicKey',
+//       ack: false
+//     }
+//     c1.sendRSAPublicKey(options)
+//   })
+})
+
+describe('ECDHE', () => {
+  it('2 clients should derive a common secret : c1 initiates the exchange', async (done) => {
     const OPT = {
       hostname: 'localhost',
       port: 9009
@@ -65,41 +121,38 @@ describe('Initial key exchange', () => {
       c2.init()
     ])
     await c1.subscribePeer(idPeer2)
-    c1.on('RSAPublicKey', async (key) => {
+    c1.on('initECDH', (key) => {
       console.log(` Signal peer1 : from ${key.from} : ${key.key}`)
       expect(key.from).toBe(idPeer2)
-      expect(key.key).toBe('RSAPublicKey' + idPeer2)
+      expect(key.key).toBe('derivedSymmetricKey')
+      console.log('sendData')
 
-      // await c1.socket.destroy()
-      // await new Promise(resolve => setTimeout(resolve, 100))
-      // console.log(Object.keys(c1.socket.channels))
-      // try {
-      //   await c1.unsubscribePeer(idPeer2)
-      // } catch (error) {
-      //   console.log(error)
-      // }
-      // console.log(Object.keys(c1.socket.channels))
-
-      // // console.log((c1.myChannel.client.channels))
-      // // console.log(Object.keys(c1.myChannel))
-      // // console.log(Object.keys(c1.channels))
-      // // console.log(c1.channels[idPeer2])
-      // c2.socket.destroy()
-
-      done()
+      // TODO : destroy
+      let params = {
+        to: idPeer2,
+        groupkey: 'this is the group key'
+      }
+      c1.sendChannelKey(params)
     })
-    c2.on('RSAPublicKey', (key) => {
+    c2.on('initECDH', (key) => {
       console.log(` Signal peer2 : from ${key.from} : ${key.key}`)
       expect(key.from).toBe(idPeer1)
-      expect(key.key).toBe('RSAPublicKey' + idPeer1)
+      expect(key.key).toBe('derivedSymmetricKey')
     })
-    let options = {
+    c2.on('channelKey', (key) => {
+      console.log(` Signal channelKey peer2 : from ${key.from} : ${key.key}`)
+      expect(key.from).toBe(idPeer1)
+      expect(key.key).toBe('this is the group key')
+      done()
+    })
+    let params = {
+      from: idPeer1,
       to: idPeer2,
-      symmetricKey: 'symKey1',
-      publicKey: 'RSAPublicKey',
+      ECPublicKey: 'ECPublicKey',
+      signature: 'signature',
       ack: false
     }
-    c1.sendPublicKey(options)
+    c1.sendECPublicKey(params)
   })
 })
 
