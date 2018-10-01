@@ -48,63 +48,7 @@ describe('Initial key exchange', () => {
     client.channels[channel].socket.destroy()
   })
 
-  //   it('2 clients should exchange their public keys : c1 initiates the exchange', async (done) => {
-  //     const OPT = {
-  //       hostname: 'localhost',
-  //       port: 9009
-  //     }
-  //     const idPeer1 = 'peer1'
-  //     OPT.id = idPeer1
-  //     const c1 = new MasqSync.Client(OPT)
-  //     const idPeer2 = 'peer2'
-  //     OPT.id = idPeer2
-  //     const c2 = new MasqSync.Client(OPT)
-
-  //     await Promise.all([
-  //       c1.init(),
-  //       c2.init()
-  //     ])
-  //     await c1.subscribePeer(idPeer2)
-  //     c1.on('RSAPublicKey', async (key) => {
-  //       console.log(` Signal peer1 : from ${key.from} : ${key.key}`)
-  //       expect(key.from).toBe(idPeer2)
-  //       expect(key.key).toBe('RSAPublicKey' + idPeer2)
-
-  //       // await c1.socket.destroy()
-  //       // await new Promise(resolve => setTimeout(resolve, 100))
-  //       // console.log(Object.keys(c1.socket.channels))
-  //       // try {
-  //       //   await c1.unsubscribePeer(idPeer2)
-  //       // } catch (error) {
-  //       //   console.log(error)
-  //       // }
-  //       // console.log(Object.keys(c1.socket.channels))
-
-  //       // // console.log((c1.myChannel.client.channels))
-  //       // // console.log(Object.keys(c1.myChannel))
-  //       // // console.log(Object.keys(c1.channels))
-  //       // // console.log(c1.channels[idPeer2])
-  //       // c2.socket.destroy()
-
-//       done()
-//     })
-//     c2.on('RSAPublicKey', (key) => {
-//       console.log(` Signal peer2 : from ${key.from} : ${key.key}`)
-//       expect(key.from).toBe(idPeer1)
-//       expect(key.key).toBe('RSAPublicKey' + idPeer1)
-//     })
-//     let options = {
-//       to: idPeer2,
-//       symmetricKey: 'symKey1',
-//       publicKey: 'RSAPublicKey',
-//       ack: false
-//     }
-//     c1.sendRSAPublicKey(options)
-//   })
-})
-
-describe('ECDHE', () => {
-  it('2 clients should derive a common secret : c1 initiates the exchange', async (done) => {
+  it('2 clients should exchange their public keys : c1 initiates the exchange', async (done) => {
     const OPT = {
       hostname: 'localhost',
       port: 9009
@@ -121,11 +65,49 @@ describe('ECDHE', () => {
       c2.init()
     ])
     await c1.subscribePeer(idPeer2)
+    c1.on('RSAPublicKey', async (key) => {
+      // console.log(` Signal peer1 : from ${key.from} : ${key.key}`)
+      expect(key.from).toBe(idPeer2)
+      expect(key.key).toBe('RSAPublicKey' + idPeer2)
+      done()
+    })
+    c2.on('RSAPublicKey', (key) => {
+      // console.log(` Signal peer2 : from ${key.from} : ${key.key}`)
+      expect(key.from).toBe(idPeer1)
+      expect(key.key).toBe('RSAPublicKey' + idPeer1)
+    })
+    let options = {
+      to: idPeer2,
+      symmetricKey: 'symKey1',
+      publicKey: 'RSAPublicKey',
+      ack: false
+    }
+    c1.sendRSAPublicKey(options)
+  })
+})
+
+describe('ECDHE', () => {
+  it('2 clients should derive a common secret : c1 initiates the exchange', async (done) => {
+    const OPT = {
+      hostname: 'localhost',
+      port: 9009
+    }
+    const idPeer1 = 'peer01'
+    OPT.id = idPeer1
+    const c1 = new MasqSync.Client(OPT)
+    const idPeer2 = 'peer02'
+    OPT.id = idPeer2
+    const c2 = new MasqSync.Client(OPT)
+
+    await Promise.all([
+      c1.init(),
+      c2.init()
+    ])
+    await c1.subscribePeer(idPeer2)
     c1.on('initECDH', (key) => {
-      console.log(` Signal peer1 : from ${key.from} : ${key.key}`)
+      // console.log(` Signal peer1 : from ${key.from} : ${key.key}`)
       expect(key.from).toBe(idPeer2)
       expect(key.key).toBe('derivedSymmetricKey')
-      console.log('sendData')
 
       // TODO : destroy
       let params = {
@@ -135,12 +117,12 @@ describe('ECDHE', () => {
       c1.sendChannelKey(params)
     })
     c2.on('initECDH', (key) => {
-      console.log(` Signal peer2 : from ${key.from} : ${key.key}`)
+      // console.log(` Signal peer2 : from ${key.from} : ${key.key}`)
       expect(key.from).toBe(idPeer1)
       expect(key.key).toBe('derivedSymmetricKey')
     })
     c2.on('channelKey', (key) => {
-      console.log(` Signal channelKey peer2 : from ${key.from} : ${key.key}`)
+      // console.log(` Signal channelKey peer2 : from ${key.from} : ${key.key}`)
       expect(key.from).toBe(idPeer1)
       expect(key.key).toBe('this is the group key')
       done()
@@ -224,7 +206,6 @@ describe('Peers', () => {
 
     // wait a bit for the other clients to sub
     await new Promise(resolve => setTimeout(resolve, 100))
-    console.log('boooo')
 
     // check that the new client ID is listed in the previous ones
     expect(Object.keys(clients[0].channels).length).toEqual(3)

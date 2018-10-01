@@ -223,8 +223,6 @@ class Client extends EventEmitter {
           // log('Channel up with ' + msg.from)
         }
         if (msg.event === 'ECPublicKey') {
-          console.log(msg)
-
           log('****** RECEIVE ******')
           log(`From ${msg.from} : ${Object.keys(msg)}`)
           log('****** RECEIVE ******')
@@ -256,8 +254,6 @@ class Client extends EventEmitter {
           this.emit('initECDH', { key: deriveSecretKey(), from: msg.from })
         }
         if (msg.event === 'channelKey') {
-          console.log(msg)
-
           receiveData(msg)
         }
         if (msg.event === 'publicKey') {
