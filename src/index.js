@@ -86,12 +86,13 @@ class Client extends EventEmitter {
    * Send the long term public key, encrypted with an ephemeral
    * symmetric key (exchanged through another channel)
    * @param {Object} params - The public key parameters
-   * @param {string} params.pubKey - The public key
-   * @param {string} params.symKey - The hexadecimal string of the symmetric key (128bits)
+   * @param {string} params.publicKey - The public key
+   * @param {string} params.symmetricKey - The hexadecimal string of the symmetric key (128bits)
    * @param {boolean} params.ack - Indicate if this is a response to a previous event
    */
   sendRSAPublicKey (params) {
     // get RSA public key and encrypt it
+    // Todo remove + this.ID to the key
     let msg = {
       from: this.ID,
       event: 'publicKey',
@@ -103,8 +104,7 @@ class Client extends EventEmitter {
   }
 
   /**
-   * Exchanging EC public keys
-   * through the other peer channel, the EC key-pair is genera
+   * Send the EC public key along with associated signature
    * @param {Object} params - The EC public key exchange parameters
    * @param {string} params.to - The channel name
    * @param {string} params.ECPublicKey - The EC public key
@@ -128,9 +128,7 @@ class Client extends EventEmitter {
   }
 
   /**
-   * Send the group channel key,
-   * after the EC public key exchange, verification and common
-   * secret derivation, we send the group key.
+   * Send the group channel key, encrypted with common derived secret key (ECDH)
    * @param {Object} params - The EC public key exchange parameters
    * @param {string} params.to - The channel name
    * @param {string} params.groupkey - The group key
