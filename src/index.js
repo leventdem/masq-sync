@@ -172,15 +172,10 @@ class Client extends EventEmitter {
     }
 
     const receiveData = (msg) => {
-      log('------ ACTION ------')
-      log(`${msg.from} decrypts data, msg is : ${msg.data}`)
-      log('------ ACTION ------')
       this.emit('channelKey', { key: msg.data.key, from: msg.from })
     }
+
     const verifyReceivedECPublicKey = (msg) => {
-      log('------ ACTION ------')
-      log(`${this.ID} verify the signature.`)
-      log('------ ACTION ------')
       return true
     }
 
