@@ -144,6 +144,68 @@ class Client extends EventEmitter {
     this.sendMessage(msg.to, msg)
   }
 
+  readyToTransfer (channel) {
+    let msg = {
+      event: 'readyToTransfer',
+      from: this.ID
+    }
+    this.sendMessage(channel, msg)
+  }
+
+  storeRSAPublicKey (msg) {
+  }
+  storeECPublicKey (msg) {
+  }
+
+  deriveSecretKey () {
+    return 'derivedSymmetricKey'
+  }
+
+  receiveData (msg) {
+    // decrypt
+    this.emit('channelKey', { key: msg.data.key, from: msg.from })
+  }
+
+  verifyReceivedECPublicKey (msg) {
+    return true
+  }
+
+  handleRSAPublicKey (msg) {
+    this.storeRSAPublicKey(msg)
+    this.emit('RSAPublicKey', { key: msg.data.key, from: msg.from })
+    if (msg.ack) { return }
+    // If initial request, send the RSA public key
+    let params = {
+      to: msg.from,
+      symmetricKey: 'symKey2',
+      publicKey: 'RSAPublicKey',
+      ack: true
+    }
+    this.sendRSAPublicKey(params)
+  }
+
+  handleECPublicKey (msg) {
+    if (!this.verifyReceivedECPublicKey(msg.data)) {
+      // TODO send an error
+      console.log('error')
+      return
+    }
+    this.storeECPublicKey(msg)
+    if (msg.ack) {
+      this.emit('initECDH', { key: this.deriveSecretKey(), from: msg.from })
+      this.readyToTransfer(msg.from)
+    } else {
+      // If initial request, send EC public key
+      let params = {
+        to: msg.from,
+        ECPublicKey: 'ECPublicKey',
+        signature: 'signature',
+        ack: true
+      }
+      this.sendECPublicKey(params)
+    }
+  }
+
   /**
    * Subscribe this client to its own channel.
    *
@@ -151,33 +213,6 @@ class Client extends EventEmitter {
    */
   subscribeSelf () {
     this.myChannel = this.socket.subscribe(this.ID)
-
-    const readyToTransfer = (channel) => {
-      let msg = {
-        event: 'readyToTransfer',
-        from: this.ID,
-        data: ' ready'
-      }
-      this.sendMessage(channel, msg)
-    }
-
-    const storeRSAPublicKey = (msg) => {
-      this.emit('RSAPublicKey', { key: msg.data.key, from: msg.from })
-    }
-    const storeECPublicKey = (msg) => {
-    }
-
-    const deriveSecretKey = () => {
-      return 'derivedSymmetricKey'
-    }
-
-    const receiveData = (msg) => {
-      this.emit('channelKey', { key: msg.data.key, from: msg.from })
-    }
-
-    const verifyReceivedECPublicKey = (msg) => {
-      return true
-    }
 
     this.myChannel.watch(msg => {
       log('****** RECEIVE ******')
@@ -202,46 +237,16 @@ class Client extends EventEmitter {
           // log('Channel up with ' + msg.from)
         }
         if (msg.event === 'ECPublicKey') {
-          // If response : we already sent the key & signature
-          if (msg.ack) {
-            if (verifyReceivedECPublicKey(msg.data)) {
-              storeECPublicKey(msg)
-              readyToTransfer(msg.from)
-              this.emit('initECDH', { key: deriveSecretKey(), from: msg.from })
-            }
-          } else {
-            if (verifyReceivedECPublicKey(msg.data)) {
-              let params = {
-                to: msg.from,
-                ECPublicKey: 'ECPublicKey',
-                signature: 'signature',
-                ack: true
-              }
-              this.sendECPublicKey(params)
-              storeECPublicKey(msg)
-            }
-          }
+          this.handleECPublicKey(msg)
         }
         if (msg.event === 'readyToTransfer') {
-          this.emit('initECDH', { key: deriveSecretKey(), from: msg.from })
+          this.emit('initECDH', { key: this.deriveSecretKey(), from: msg.from })
         }
         if (msg.event === 'channelKey') {
-          receiveData(msg)
+          this.receiveData(msg)
         }
         if (msg.event === 'publicKey') {
-          // If response : do not need to send again.
-          if (msg.ack) {
-            storeRSAPublicKey(msg)
-          } else {
-            storeRSAPublicKey(msg)
-            let params = {
-              to: msg.from,
-              symmetricKey: 'symKey2',
-              publicKey: 'RSAPublicKey',
-              ack: true
-            }
-            this.sendRSAPublicKey(params)
-          }
+          this.handleRSAPublicKey(msg)
         }
       }
     })
