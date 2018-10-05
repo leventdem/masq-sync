@@ -1,6 +1,7 @@
 import socketClient from 'socketcluster-client'
 import common from 'masq-common'
 import EventEmitter from 'events'
+import MasqCrypto from 'masq-crypto'
 
 // default settings
 const DEFAULTS = {
@@ -32,6 +33,8 @@ var log = (...args) => {
  * Client class.
  *
  * @param  {Object} options List of constructor parameters
+ * @param  {Object} options.ID The id of the socket (hash of the RSA public key)
+ * @param  {Object} options.masqStore The instance of masq
  */
 class Client extends EventEmitter {
   constructor (options) {
@@ -40,6 +43,8 @@ class Client extends EventEmitter {
     this.options = Object.assign({}, DEFAULTS, options)
     this.ID = this.options.id || common.generateUUID()
     this.channels = {}
+    this.RSAExchangeEncKey = null
+    this.masqStore = this.options.masqStore
     this.socket = undefined
     this.myChannel = undefined
   }
@@ -83,6 +88,17 @@ class Client extends EventEmitter {
   }
 
   /**
+   * This function stores the RSAExchangeEncKey in the current masq-sync
+   * instance to en/decrypt the exchanged of the RSA public keys during
+   * pairing operation/communications.
+   *
+   * @param {string} RSAExchangeEncKey - The hexadecimal string of the symmetric key (128bits)
+   */
+  saveRSAExchangeEncKey (RSAExchangeEncKey) {
+    this.RSAExchangeEncKey = MasqCrypto.utils.hexStringToBuffer(RSAExchangeEncKey)
+  }
+
+  /**
    * Send the long term public key, encrypted with an ephemeral
    * symmetric key (exchanged through another channel)
    * @param {Object} params - The public key parameters
@@ -90,13 +106,37 @@ class Client extends EventEmitter {
    * @param {string} params.symmetricKey - The hexadecimal string of the symmetric key (128bits)
    * @param {boolean} params.ack - Indicate if this is a response to a previous event
    */
-  sendRSAPublicKey (params) {
-    // get RSA public key and encrypt it
+  async sendRSAPublicKey (params) {
+    /**
+     * The symmetric key is given as parameter on the device which
+     * asks the pairing.
+     * The paired device generates the symmetric key must call
+     * saveRSAExchangeEncKey method before sending the QRCOde or pairing link
+     */
+
+    console.log('10.0')
+
+    if (params.symmetricKey) {
+      this.RSAExchangeEncKey = MasqCrypto.utils.hexStringToBuffer(params.symmetricKey)
+    }
+    console.log('10.1')
+    if (!params.symmetricKey && !this.RSAExchangeEncKey) {
+      throw new Error('The ephemeral AES encryption key used to encrypt RSA public keys during pairing operation is not known.')
+    }
+    console.log('10.2')
+    const cipherAES = new MasqCrypto.AES({
+      mode: MasqCrypto.aesModes.GCM,
+      key: params.symmetricKey ? MasqCrypto.utils.hexStringToBuffer(params.symmetricKey) : this.RSAExchangeEncKey,
+      keySize: 128
+    })
+
+    const encPublicKey = await cipherAES.encrypt(params.publicKey)
+    console.log(`From : ${this.ID}, encrypt ${params.publicKey} -> ${encPublicKey}`)
     // Todo remove + this.ID to the key
     let msg = {
       from: this.ID,
       event: 'publicKey',
-      data: { key: params.publicKey + this.ID },
+      data: { key: encPublicKey },
       to: params.to,
       ack: params.ack
     }
@@ -152,7 +192,27 @@ class Client extends EventEmitter {
     this.sendMessage(channel, msg)
   }
 
-  storeRSAPublicKey (msg) {
+  async decryptRSAPublicKey (msg) {
+    const cipherAES = new MasqCrypto.AES({
+      mode: MasqCrypto.aesModes.GCM,
+      key: this.RSAExchangeEncKey,
+      keySize: 128
+    })
+    const decPublicKey = await cipherAES.decrypt(msg.data.key)
+    console.log(` ${msg.to}, decrypt ${msg.data.key} -> ${decPublicKey}`)
+    return decPublicKey
+  }
+
+  async storeRSAPublicKey (msg, key) {
+    let device = {
+      name: 'name',
+      RSAPublicKey: key,
+      isSynched: true
+    }
+    console.log(` ${msg.to}, stores :`)
+    console.log(device)
+
+    // await this.masqStore.addPairedDevice(device)
   }
   storeECPublicKey (msg) {
   }
@@ -170,14 +230,14 @@ class Client extends EventEmitter {
     return true
   }
 
-  handleRSAPublicKey (msg) {
-    this.storeRSAPublicKey(msg)
-    this.emit('RSAPublicKey', { key: msg.data.key, from: msg.from })
+  async handleRSAPublicKey (msg) {
+    const RSAPublicKey = await this.decryptRSAPublicKey(msg)
+    this.storeRSAPublicKey(msg, RSAPublicKey)
+    this.emit('RSAPublicKey', { key: RSAPublicKey, from: msg.from })
     if (msg.ack) { return }
     // If initial request, send the RSA public key
     let params = {
       to: msg.from,
-      symmetricKey: 'symKey2',
       publicKey: 'RSAPublicKey',
       ack: true
     }
