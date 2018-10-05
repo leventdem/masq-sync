@@ -77,6 +77,7 @@ describe('Initial key exchange', () => {
   })
 
   it('2 clients should succesfully exchange their public keys : c1 initiates the exchange', async (done) => {
+    expect.assertions(5)
     const peer1 = {
       hostname: 'localhost',
       port: 9009,
@@ -99,7 +100,6 @@ describe('Initial key exchange', () => {
       expect(key.from).toBe(peer2.id)
       expect(key.key).toBe('RSAPublicKey')
       // console.log(` Signal peer1 : from ${key.from} : ${key.key}`)
-      expect.assertions(4)
       done()
     })
     c2.on('RSAPublicKey', (key) => {
@@ -114,6 +114,7 @@ describe('Initial key exchange', () => {
       ack: false
     }
     c2.saveRSAExchangeEncKey(options.symmetricKey)
+    expect(c2.RSAExchangeEncKey).toEqual(Uint8Array.from([17, 161, 178, 17, 161, 178, 17, 161, 178, 17, 161, 178, 17, 161, 178, 162]))
     c1.sendRSAPublicKey(options)
   })
 })

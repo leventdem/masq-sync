@@ -114,12 +114,9 @@ class Client extends EventEmitter {
      * saveRSAExchangeEncKey method before sending the QRCOde or pairing link
      */
 
-    console.log('10.0')
-
     if (params.symmetricKey) {
       this.RSAExchangeEncKey = MasqCrypto.utils.hexStringToBuffer(params.symmetricKey)
     }
-    console.log('10.1')
     if (!params.symmetricKey && !this.RSAExchangeEncKey) {
       throw new Error('The ephemeral AES encryption key used to encrypt RSA public keys during pairing operation is not known.')
     }
