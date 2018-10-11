@@ -109,7 +109,56 @@ class AES {
     })
   }
 }
+
+class EC {
+  constructor (params) {
+    this.name = params.name || 'ECDH'
+    this.curve = params.curve || 'P-384'
+    this.hash = params.hash || 'SHA-256'
+    this.publicKey = null
+    this.privateKey = null
+  }
+
+  genECKeyPair () {
+    return new Promise((resolve, reject) => {
+      this.publicKey = 'ECPublicKey'
+      this.privateKey = 'ECPrivateKey'
+      resolve()
+    })
+  }
+
+  exportKeyRaw () {
+    return new Promise((resolve, reject) => {
+      resolve(toArray('ECPublicKeyRaw'))
+    })
+  }
+}
+
+class RSA {
+  constructor (params) {
+    this.modulusLength = params.modulusLength || 4096
+    this.hash = params.hash || 'SHA-256'
+    this.name = params.name || 'RSA-PSS'
+    this.publicKey = null
+    this.privateKey = null
+  }
+
+  signRSA (key) {
+    return new Promise((resolve, reject) => {
+      resolve(toArray(key + 'signature'))
+    })
+  }
+
+  verifRSA (key) {
+    return new Promise((resolve, reject) => {
+      resolve(toArray(key + 'signature'))
+    })
+  }
+}
 MasqCrypto.utils.hexStringToBuffer = hexStringToBuffer
 MasqCrypto.AES = AES
+MasqCrypto.EC = EC
+MasqCrypto.EC = EC
+MasqCrypto.RSA = RSA
 MasqCrypto.aesModes = aesModes
 module.exports = MasqCrypto

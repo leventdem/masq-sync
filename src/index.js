@@ -44,6 +44,8 @@ class Client extends EventEmitter {
     this.ID = this.options.id || common.generateUUID()
     this.channels = {}
     this.RSAExchangeEncKey = null
+    this.EC = null
+    this.RSA = null
     this.masqStore = this.options.masqStore
     this.socket = undefined
     this.myChannel = undefined
@@ -148,17 +150,25 @@ class Client extends EventEmitter {
    * @param {string} params.signature - The signature of the EC public key
    * @param {boolean} ack - Indicate if this is a response to a previous event
    */
-  sendECPublicKey (params) {
-    // genECPublicKeys()
-    // encrypt EC public key
+  async sendECPublicKey (params) {
+    this.EC = new MasqCrypto.EC({})
+    await this.EC.genECKeyPair()
+    const ECPublicKey = await this.EC.exportKeyRaw()
+    const currentDevice = await this.masqStore.getCurrentDevice()
+    if (!this.RSA) {
+      this.RSA = new MasqCrypto.RSA({})
+      this.RSA.publicKey = currentDevice.publicKey
+      this.RSA.privateKey = currentDevice.privateKey
+    }
+    const signature = this.RSA.signRSA(ECPublicKey)
     let msg = {
       from: this.ID,
       event: 'ECPublicKey',
       to: params.to,
       ack: params.ack,
       data: {
-        key: params.ECPublicKey + this.ID,
-        signature: params.signature
+        key: MasqCrypto.utils.bufferToHexString(ECPublicKey),
+        signature: MasqCrypto.utils.bufferToHexString(signature)
       }
     }
     this.sendMessage(msg.to, msg)
@@ -223,8 +233,16 @@ class Client extends EventEmitter {
     this.emit('channelKey', { key: msg.data.key, from: msg.from })
   }
 
-  verifyReceivedECPublicKey (msg) {
-    return true
+  async verifyReceivedECPublicKey (msg) {
+    const ECPublicKey = MasqCrypto.utils.hexStringToBuffer(msg.data.key)
+    const signature = MasqCrypto.utils.hexStringToBuffer(msg.data.signature)
+    const devices = await this.masqStore.getCurrentDevice()
+    if (devices[msg.from].publicKey) {
+      // TODO throw an error instead
+      console.log(`The RSA Public key of ${msg.from} does not exist`)
+    }
+    const senderRSAPublicKey = MasqCrypto.RSA.importRSAPubKey(devices[msg.from].publicKey)
+    return MasqCrypto.RSA.verifRSA(senderRSAPublicKey, signature, ECPublicKey)
   }
 
   async handleRSAPublicKey (msg) {
@@ -244,7 +262,7 @@ class Client extends EventEmitter {
   handleECPublicKey (msg) {
     if (!this.verifyReceivedECPublicKey(msg.data)) {
       // TODO send an error
-      console.log('error')
+      console.log('error during EC public key verification')
       return
     }
     this.storeECPublicKey(msg)
