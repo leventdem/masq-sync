@@ -4,10 +4,13 @@
   "description": "Sync client for Masq",
   "main": "dist/index.js",
   "scripts": {
+    "browserify": "browserify ./dist/index.js --standalone MasqSync > dist/MasqSync.js",
     "build": "babel src --presets env --out-dir dist/",
+    "run-server": "node dist/server.js",
     "test": "standard && jest test/*.test.js --runInBand --verbose --coverage --forceExit",
     "watch": "jest --watch",
-    "prepublish": "npm run build"
+    "prepublish": "npm run build",
+    "start": " npm run build && npm run browserify && http-server ."
   },
   "repository": {
     "type": "git",
@@ -25,6 +28,7 @@
     "standard": "^12.0.1"
   },
   "dependencies": {
+    "http-server": "^0.11.1",
     "masq-common": "git+https://github.com/QwantResearch/masq-common.git",
     "masq-crypto": "git+https://github.com/QwantResearch/masq-crypto.git",
     "socketcluster-client": "^14.1.0"

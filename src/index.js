@@ -44,6 +44,7 @@ class Client extends EventEmitter {
     this.ID = this.options.id || common.generateUUID()
     this.channels = {}
     this.RSAExchangeEncKey = null
+    this.commonECDHDerivedKey = null
     this.EC = null
     this.RSA = null
     this.masqStore = this.options.masqStore
@@ -122,7 +123,6 @@ class Client extends EventEmitter {
     if (!params.symmetricKey && !this.RSAExchangeEncKey) {
       throw new Error('The ephemeral AES encryption key used to encrypt RSA public keys during pairing operation is not known.')
     }
-    console.log('10.2')
     const cipherAES = new MasqCrypto.AES({
       mode: MasqCrypto.aesModes.GCM,
       key: params.symmetricKey ? MasqCrypto.utils.hexStringToBuffer(params.symmetricKey) : this.RSAExchangeEncKey,
@@ -130,8 +130,10 @@ class Client extends EventEmitter {
     })
 
     const encPublicKey = await cipherAES.encrypt(params.publicKey)
+    console.log(encPublicKey)
     console.log(`From : ${this.ID}, encrypt ${params.publicKey} -> ${encPublicKey}`)
     // Todo remove + this.ID to the key
+
     let msg = {
       from: this.ID,
       event: 'publicKey',
@@ -151,16 +153,19 @@ class Client extends EventEmitter {
    * @param {boolean} ack - Indicate if this is a response to a previous event
    */
   async sendECPublicKey (params) {
-    this.EC = new MasqCrypto.EC({})
-    await this.EC.genECKeyPair()
+    if (!this.EC) {
+      this.EC = new MasqCrypto.EC({})
+      await this.EC.genECKeyPair()
+    }
     const ECPublicKey = await this.EC.exportKeyRaw()
     const currentDevice = await this.masqStore.getCurrentDevice()
+
     if (!this.RSA) {
       this.RSA = new MasqCrypto.RSA({})
       this.RSA.publicKey = currentDevice.publicKey
       this.RSA.privateKey = currentDevice.privateKey
     }
-    const signature = this.RSA.signRSA(ECPublicKey)
+    const signature = await this.RSA.signRSA(ECPublicKey)
     let msg = {
       from: this.ID,
       event: 'ECPublicKey',
@@ -171,23 +176,37 @@ class Client extends EventEmitter {
         signature: MasqCrypto.utils.bufferToHexString(signature)
       }
     }
+
     this.sendMessage(msg.to, msg)
   }
 
   /**
    * Send the group channel key, encrypted with common derived secret key (ECDH)
-   * @param {Object} params - The EC public key exchange parameters
+   * @param {Object} params - The group key exchange parameters
    * @param {string} params.to - The channel name
-   * @param {string} params.groupkey - The group key
+   * @param {string} params.groupkey - The group key (hex string of a 128 bit AES key)
    */
-  sendChannelKey (params) {
-    // TODO encrypt
+  async sendChannelKey (params) {
+    if (!this.commonECDHDerivedKey) {
+      console.log('Error: the ECDH common key derivation does not exist')
+      return
+    }
+
+    const cipherAES = new MasqCrypto.AES({
+      mode: MasqCrypto.aesModes.GCM,
+      key: this.commonECDHDerivedKey,
+      keySize: 128
+    })
+    const encGroupKey = await cipherAES.encrypt(params.groupkey)
+
     let msg = {
       to: params.to,
       event: 'channelKey',
       from: this.ID,
-      data: { key: params.groupkey }
+      data: { key: encGroupKey }
     }
+    console.log('sendCHannel key')
+
     this.sendMessage(msg.to, msg)
   }
 
@@ -209,6 +228,20 @@ class Client extends EventEmitter {
     console.log(` ${msg.to}, decrypt ${msg.data.key} -> ${decPublicKey}`)
     return decPublicKey
   }
+  async decryptGroupKey (msg) {
+    if (!this.commonECDHDerivedKey) {
+      console.log('Error: the ECDH common key derivation does not exist')
+      return
+    }
+    const cipherAES = new MasqCrypto.AES({
+      mode: MasqCrypto.aesModes.GCM,
+      key: this.commonECDHDerivedKey,
+      keySize: 128
+    })
+    const decGroupKey = await cipherAES.decrypt(msg.data.key)
+    console.log(` group key ${msg.to}, decrypt ${msg.data.key} -> ${decGroupKey}`)
+    return decGroupKey
+  }
 
   async storeRSAPublicKey (msg, key) {
     let device = {
@@ -219,30 +252,30 @@ class Client extends EventEmitter {
     console.log(` ${msg.to}, stores :`)
     console.log(device)
 
-    // await this.masqStore.addPairedDevice(device)
+    await this.masqStore.addPairedDevice(device)
   }
   storeECPublicKey (msg) {
+
   }
 
-  deriveSecretKey () {
-    return 'derivedSymmetricKey'
+  async deriveSecretKey (senderECPublicKey) {
+    if (!this.EC) {
+      console.log('Error : the EC key pair does not exist ')
+    }
+    const ECPublicKey = MasqCrypto.utils.hexStringToBuffer(senderECPublicKey)
+    const ECCryptoKey = await this.EC.importKeyRaw(ECPublicKey)
+    this.commonECDHDerivedKey = await this.EC.deriveKeyECDH(ECCryptoKey, 'aes-gcm', 128)
   }
 
-  receiveData (msg) {
-    // decrypt
-    this.emit('channelKey', { key: msg.data.key, from: msg.from })
-  }
-
-  async verifyReceivedECPublicKey (msg) {
+  async verifyReceivedECPublicKey (msg, senderRSAPublicKey) {
     const ECPublicKey = MasqCrypto.utils.hexStringToBuffer(msg.data.key)
     const signature = MasqCrypto.utils.hexStringToBuffer(msg.data.signature)
-    const devices = await this.masqStore.getCurrentDevice()
-    if (devices[msg.from].publicKey) {
-      // TODO throw an error instead
-      console.log(`The RSA Public key of ${msg.from} does not exist`)
-    }
-    const senderRSAPublicKey = MasqCrypto.RSA.importRSAPubKey(devices[msg.from].publicKey)
     return MasqCrypto.RSA.verifRSA(senderRSAPublicKey, signature, ECPublicKey)
+  }
+
+  async handleGroupKey (msg) {
+    const groupKey = await this.decryptGroupKey(msg)
+    this.emit('channelKey', { key: groupKey, from: msg.from })
   }
 
   async handleRSAPublicKey (msg) {
@@ -253,28 +286,38 @@ class Client extends EventEmitter {
     // If initial request, send the RSA public key
     let params = {
       to: msg.from,
-      publicKey: 'RSAPublicKey',
+      publicKey: JSON.stringify(this.masqStore.getCurrentDevice().publicKeyRaw),
       ack: true
     }
     this.sendRSAPublicKey(params)
   }
 
-  handleECPublicKey (msg) {
-    if (!this.verifyReceivedECPublicKey(msg.data)) {
+  async handleECPublicKey (msg) {
+    const devices = await this.masqStore.listDevices()
+    if (!devices[msg.from].RSAPublicKey) {
+      // TODO throw an error instead
+      console.log(`The RSA Public key of ${msg.from} does not exist`)
+      return
+    }
+    const senderRSAPublicKey = await MasqCrypto.RSA.importRSAPubKey(JSON.parse(devices[msg.from].RSAPublicKey))
+    if (!this.verifyReceivedECPublicKey(msg, senderRSAPublicKey)) {
       // TODO send an error
       console.log('error during EC public key verification')
       return
     }
-    this.storeECPublicKey(msg)
+    // this.storeECPublicKey(msg)
+
     if (msg.ack) {
-      this.emit('initECDH', { key: this.deriveSecretKey(), from: msg.from })
+      await this.deriveSecretKey(msg.data.key)
+      this.emit('initECDH', { key: this.commonECDHDerivedKey, from: msg.from })
       this.readyToTransfer(msg.from)
     } else {
       // If initial request, send EC public key
+      this.EC = new MasqCrypto.EC({})
+      await this.EC.genECKeyPair()
+      await this.deriveSecretKey(msg.data.key)
       let params = {
         to: msg.from,
-        ECPublicKey: 'ECPublicKey',
-        signature: 'signature',
         ack: true
       }
       this.sendECPublicKey(params)
@@ -296,7 +339,7 @@ class Client extends EventEmitter {
 
       if (msg.from === this.ID) return
       if (msg.from) {
-        // log(`New msg in my channel:`, msg)
+        log(`New msg in my channel:`, msg.event)
         if (msg.event === 'ping') {
           var data = {
             event: 'pong',
@@ -315,10 +358,10 @@ class Client extends EventEmitter {
           this.handleECPublicKey(msg)
         }
         if (msg.event === 'readyToTransfer') {
-          this.emit('initECDH', { key: this.deriveSecretKey(), from: msg.from })
+          this.emit('initECDH', { key: this.commonECDHDerivedKey, from: msg.from })
         }
         if (msg.event === 'channelKey') {
-          this.receiveData(msg)
+          this.handleGroupKey(msg)
         }
         if (msg.event === 'publicKey') {
           this.handleRSAPublicKey(msg)
