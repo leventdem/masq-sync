@@ -25,7 +25,7 @@
                 <li>Exchange RSA keys : <br> The two entities exchange the long term RSA public keys.
                    
                 </li>
-                <li>ECDHE Step 1:  <br> The two entities performs ECDHE to derive a common secret key
+                <li>ECDHE Step 1:  <br> The two entities performs ECDHE to derive a common secret key. Each entity 1) generates an EC key pair, 2) Sign the public EC key 3) Send it 4) Verify the received EC key signature with the stored public RSA key.
                 </li>
                 <li>ECDHE Step 2:  <br> The two entities exchange a secret key en/decrypted with the common derived secret key
                 </li>

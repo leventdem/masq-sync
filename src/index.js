@@ -130,10 +130,6 @@ class Client extends EventEmitter {
     })
 
     const encPublicKey = await cipherAES.encrypt(params.publicKey)
-    console.log(encPublicKey)
-    console.log(`From : ${this.ID}, encrypt ${params.publicKey} -> ${encPublicKey}`)
-    // Todo remove + this.ID to the key
-
     let msg = {
       from: this.ID,
       event: 'publicKey',
@@ -205,8 +201,6 @@ class Client extends EventEmitter {
       from: this.ID,
       data: { key: encGroupKey }
     }
-    console.log('sendCHannel key')
-
     this.sendMessage(msg.to, msg)
   }
 
@@ -225,7 +219,6 @@ class Client extends EventEmitter {
       keySize: 128
     })
     const decPublicKey = await cipherAES.decrypt(msg.data.key)
-    console.log(` ${msg.to}, decrypt ${msg.data.key} -> ${decPublicKey}`)
     return decPublicKey
   }
   async decryptGroupKey (msg) {
@@ -239,7 +232,6 @@ class Client extends EventEmitter {
       keySize: 128
     })
     const decGroupKey = await cipherAES.decrypt(msg.data.key)
-    console.log(` group key ${msg.to}, decrypt ${msg.data.key} -> ${decGroupKey}`)
     return decGroupKey
   }
 
@@ -249,8 +241,8 @@ class Client extends EventEmitter {
       RSAPublicKey: key,
       isSynched: true
     }
-    console.log(` ${msg.to}, stores :`)
-    console.log(device)
+    log(` ${msg.to}, stores :`)
+    log(device)
 
     await this.masqStore.addPairedDevice(device)
   }

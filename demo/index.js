@@ -29,10 +29,6 @@ function getItem (key) {
   return Promise.resolve(null)
 }
 
-const OPTIONS = {
-  hostname: 'localhost',
-  port: 9009
-}
 const debug = false
 var log = (...args) => {
   const reg = (all, cur) => {
@@ -54,13 +50,6 @@ var log = (...args) => {
  */
 const logFail = (err) => {
   console.log(err)
-}
-
-const delay = (ms) => {
-  log('wait ...')
-  return new Promise(function (resolve, reject) {
-    setTimeout(resolve, ms) // (A)
-  })
 }
 
 /*
@@ -96,6 +85,7 @@ const peer = {
 }
 
 let c1 = null
+let RSAExchangedDone = false
 
 const generateRSAKeys = async () => {
   const cipherRSA = new MasqCrypto.RSA({})
@@ -129,12 +119,9 @@ const init = async () => {
     await setItem(peer2, device)
   }
   masqStore.listDevices = async () => {
-    const peer2 = peer.id2
-    const pairedDevice = await getItem(peer2)
-    console.log(pairedDevice)
-
-    let ret = { }
-    ret[peer2] = pairedDevice
+    const pairedDevice = await getItem(peer.id2)
+    let ret = {}
+    ret[peer.id2] = pairedDevice
     return ret
   }
   peer.masqStore = masqStore
@@ -143,7 +130,6 @@ const init = async () => {
   c1.on('initECDH', (key) => {
     let el = document.getElementById('ECDHStep1')
     el.innerHTML = `Common secret key derived : messages are now en/decrypted with ${MasqCrypto.utils.bufferToHexString(key.key)}`
-    // console.log(` Signal : from ${key.from} : ${key.key}`)
 
     if (peer.id === 'alice') {
       let params = {
@@ -158,7 +144,6 @@ const init = async () => {
   c1.on('RSAPublicKey', async (key) => {
     let el = document.getElementById('RSAExchangeDone')
     el.innerHTML = `Received RSA public key of ${key.from}`
-    // console.log(` Signal : from ${key.from} : ${key.key}`)
   })
   c1.on('channelKey', async (key) => {
     let el = document.getElementById('ECDHStep2')
@@ -182,6 +167,12 @@ const init = async () => {
  * }
  */
 const exchangeRSAKey = async () => {
+  if (peer.id === 'bob') {
+    console.log('Error : please the initior of exchange key and ECDHE is Alice !')
+    let el = document.getElementById('RSAExchangeDone')
+    el.innerHTML = `Error : please the initior of exchange key and ECDHE is Alice, not Bob ! Retry with Alice`
+    return
+  }
   const peer2 = peer.id2
   await c1.subscribePeer(peer2)
 
@@ -194,9 +185,23 @@ const exchangeRSAKey = async () => {
     ack: false
   }
   c1.sendRSAPublicKey(options)
+  RSAExchangedDone = true
 }
 
 const startECDH = async () => {
+  if (peer.id === 'bob') {
+    console.log('Error : please the initior of exchange key and ECDHE is Alice !')
+    let el = document.getElementById('ECDHStep1')
+    el.innerHTML = `Error : please the initior of exchange key and ECDHE is Alice, not Bob ! Retry with Alice`
+    return
+  }
+  if (RSAExchangedDone === false) {
+    console.log('error RSAExchangedDone')
+
+    let el = document.getElementById('ECDHStep1')
+    el.innerHTML = `Error : please exchange the public RSA keys before starting ECDHE! `
+    return
+  }
   let params = {
     from: peer.id,
     to: peer.id2,

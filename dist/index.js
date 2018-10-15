@@ -223,11 +223,6 @@ var Client = function (_EventEmitter) {
 
               case 6:
                 encPublicKey = _context2.sent;
-
-                console.log(encPublicKey);
-                console.log('From : ' + this.ID + ', encrypt ' + params.publicKey + ' -> ' + encPublicKey);
-                // Todo remove + this.ID to the key
-
                 msg = {
                   from: this.ID,
                   event: 'publicKey',
@@ -238,7 +233,7 @@ var Client = function (_EventEmitter) {
 
                 this.sendMessage(msg.to, msg);
 
-              case 11:
+              case 9:
               case 'end':
                 return _context2.stop();
             }
@@ -374,11 +369,9 @@ var Client = function (_EventEmitter) {
                   data: { key: encGroupKey }
                 };
 
-                console.log('sendCHannel key');
-
                 this.sendMessage(msg.to, msg);
 
-              case 10:
+              case 9:
               case 'end':
                 return _context4.stop();
             }
@@ -420,11 +413,9 @@ var Client = function (_EventEmitter) {
 
               case 3:
                 decPublicKey = _context5.sent;
-
-                console.log(' ' + msg.to + ', decrypt ' + msg.data.key + ' -> ' + decPublicKey);
                 return _context5.abrupt('return', decPublicKey);
 
-              case 6:
+              case 5:
               case 'end':
                 return _context5.stop();
             }
@@ -466,11 +457,9 @@ var Client = function (_EventEmitter) {
 
               case 6:
                 decGroupKey = _context6.sent;
-
-                console.log(' group key ' + msg.to + ', decrypt ' + msg.data.key + ' -> ' + decGroupKey);
                 return _context6.abrupt('return', decGroupKey);
 
-              case 9:
+              case 8:
               case 'end':
                 return _context6.stop();
             }
@@ -499,8 +488,8 @@ var Client = function (_EventEmitter) {
                   isSynched: true
                 };
 
-                console.log(' ' + msg.to + ', stores :');
-                console.log(device);
+                log(' ' + msg.to + ', stores :');
+                log(device);
 
                 _context7.next = 5;
                 return this.masqStore.addPairedDevice(device);
